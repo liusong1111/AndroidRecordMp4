@@ -8,3 +8,4 @@
 (6) 解决音视频不同步，前几帧图像马赛克，muxer failed 等问题
 (7) 所有对YUV的处理均在NDK层实现，编码效率高
 (8) 支持YV12转NV21，NV21转YUV420sp，NV21转YUV420p
+/// 博客地址:http://blog.csdn.net/andrexpert/article/details/72523408
