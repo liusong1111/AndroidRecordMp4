@@ -13,7 +13,11 @@ import android.widget.Toast;
 import com.jiangdg.mediacodec4mp4.RecordMp4;
 import com.jiangdg.mediacodec4mp4.CameraManager;
 import com.jiangdg.mediacodec4mp4.SensorAccelerometer;
+import com.jiangdg.mediacodec4mp4.runnable.EncoderParams;
+import com.jiangdg.mediacodec4mp4.runnable.EncoderVideoRunnable;
 import com.jiangdg.yuvosd.YuvUtils;
+
+import java.io.File;
 
 public class MainActivity extends Activity implements SurfaceHolder.Callback{
     private Button mBtnRecord;
@@ -70,7 +74,29 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
             public void onClick(View view) {
                 RecordMp4 mMuxerUtils = RecordMp4.getMuxerRunnableInstance();
                 if(!isRecording){
-                    mMuxerUtils.startMuxerThread();
+                    String videoPath =  RecordMp4.ROOT_PATH+ File.separator + System.currentTimeMillis() + ".mp4";
+                    int width = CameraManager.PREVIEW_WIDTH;
+                    int height = CameraManager.PREVIEW_HEIGHT;
+
+                    mMuxerUtils.startMuxerThread(new EncoderParams(
+                            videoPath,      // 文件保持路径
+                            width,          // 分辨率-宽
+                            height,         // 分辨率-高
+                            EncoderVideoRunnable.Quality.MIDDLE,    // 中等码率
+                            EncoderVideoRunnable.Quality.MIDDLE,    // 帧率：25fps
+                            false,  // 后置摄像头，true为前置摄像头
+                            false   // 垂直拍摄，true为水平拍摄
+                    ), new RecordMp4.OnRecordResultListener() {  
+                        @Override
+                        public void onSuccuss(String path) {
+                            showMsg("保存路径："+path);
+                        }
+
+                        @Override
+                        public void onFailed(String tipMsg) {
+                            showMsg(tipMsg);
+                        }
+                    });
                     mBtnRecord.setText("停止录像");
                 }else{
                     mMuxerUtils.stopMuxerThread();
@@ -149,4 +175,8 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
 		}
 		mSensorAccelerometer.stopSensorAccelerometer();
 	}
+
+    private void showMsg(String msg){
+        Toast.makeText(MainActivity.this, msg,Toast.LENGTH_SHORT).show();
+    }
 }
