@@ -1,13 +1,11 @@
-package com.jiangdg.mediacodecdemo.utils;
-
-import java.io.IOException;
-import java.lang.ref.WeakReference;
-import java.util.Iterator;
-import java.util.List;
+package com.jiangdg.mediacodec4mp4;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
+import android.graphics.Matrix;
 import android.hardware.Camera;
 import android.hardware.Camera.AutoFocusCallback;
 import android.hardware.Camera.CameraInfo;
@@ -17,10 +15,20 @@ import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.lang.ref.WeakReference;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+
 /** Camera操作封装类
  * Created by jiangdongguo on 2017/5/6.
  */
-public class CameraUtils {
+public class CameraManager {
 	private static final String TAG = "CameraManager";
 	public static int PREVIEW_WIDTH = 1280;
 	public static int PREVIEW_HEIGHT = 720;
@@ -32,8 +40,8 @@ public class CameraUtils {
 	private WeakReference<SurfaceHolder> mHolderRef;
 
 
-	private static CameraUtils mCameraManager;
-	private CameraUtils() {}
+	private static CameraManager mCameraManager;
+	private CameraManager() {}
 	
 	public interface OnPreviewFrameResult{
 		void onPreviewResult(byte[] data, Camera camera);
@@ -42,11 +50,15 @@ public class CameraUtils {
 	public interface OnCameraFocusResult{
 		void onFocusResult(boolean result);
 	}
-	
-	public static CameraUtils getCamManagerInstance(Context mContext){
-		CameraUtils.mContext = mContext;
+
+	public interface OnTakePictureResultListener{
+		void onTakeResult(String path);
+	}
+
+	public static CameraManager getCamManagerInstance(Context mContext){
+		CameraManager.mContext = mContext;
 		if(mCameraManager == null){
-			mCameraManager = new CameraUtils();
+			mCameraManager = new CameraManager();
 		}
 		return mCameraManager;
 	} 

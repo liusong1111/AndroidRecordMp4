@@ -1,6 +1,4 @@
-package com.jiangdg.mediacodecdemo.utils;
-
-import java.util.Calendar;
+package com.jiangdg.mediacodec4mp4;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -9,6 +7,8 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.util.Log;
+
+import java.util.Calendar;
 
 /**加速器传感器，监听手机运动状态，比如静止、移动，用于自动对焦
  *

@@ -10,31 +10,31 @@ import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.Toast;
 
-import com.jiangdg.mediacodecdemo.utils.CameraUtils;
-import com.jiangdg.mediacodecdemo.utils.MediaMuxerUtils;
-import com.jiangdg.mediacodecdemo.utils.SensorAccelerometer;
+import com.jiangdg.mediacodec4mp4.RecordMp4;
+import com.jiangdg.mediacodec4mp4.CameraManager;
+import com.jiangdg.mediacodec4mp4.SensorAccelerometer;
 import com.jiangdg.yuvosd.YuvUtils;
 
 public class MainActivity extends Activity implements SurfaceHolder.Callback{
     private Button mBtnRecord;
     private Button mBtnSwitchCam;
     private SurfaceView mSurfaceView;
-    private CameraUtils mCamManager;
+    private CameraManager mCamManager;
     private boolean isRecording;
 	//加速传感器
 	private static SensorAccelerometer mSensorAccelerometer;
 
-    byte[] nv21 = new byte[CameraUtils.PREVIEW_WIDTH * CameraUtils.PREVIEW_HEIGHT * 3/2];
+    byte[] nv21 = new byte[CameraManager.PREVIEW_WIDTH * CameraManager.PREVIEW_HEIGHT * 3/2];
 
-    private CameraUtils.OnPreviewFrameResult mPreviewListener = new CameraUtils.OnPreviewFrameResult() {
+    private CameraManager.OnPreviewFrameResult mPreviewListener = new CameraManager.OnPreviewFrameResult() {
         @Override
         public void onPreviewResult(byte[] data, Camera camera) {
             mCamManager.getCameraIntance().addCallbackBuffer(data);
-            if(CameraUtils.isUsingYv12 ){
-                YuvUtils.swapYV12ToNV21(data, nv21, CameraUtils.PREVIEW_WIDTH, CameraUtils.PREVIEW_HEIGHT);
-                MediaMuxerUtils.getMuxerRunnableInstance().addVideoFrameData(nv21);
+            if(CameraManager.isUsingYv12 ){
+                YuvUtils.swapYV12ToNV21(data, nv21, CameraManager.PREVIEW_WIDTH, CameraManager.PREVIEW_HEIGHT);
+                RecordMp4.getMuxerRunnableInstance().addVideoFrameData(nv21);
             }else{
-                MediaMuxerUtils.getMuxerRunnableInstance().addVideoFrameData(data);
+                RecordMp4.getMuxerRunnableInstance().addVideoFrameData(data);
             }
         }
     };
@@ -43,7 +43,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        mCamManager = CameraUtils.getCamManagerInstance(MainActivity.this);
+        mCamManager = CameraManager.getCamManagerInstance(MainActivity.this);
 		//实例化加速传感器
 		mSensorAccelerometer = SensorAccelerometer.getSensorInstance();
 		
@@ -53,7 +53,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
 			
 			@Override
 			public void onClick(View v) {
-				mCamManager.cameraFocus(new CameraUtils.OnCameraFocusResult() {
+				mCamManager.cameraFocus(new CameraManager.OnCameraFocusResult() {
 					@Override
 					public void onFocusResult(boolean result) {
 						if(result){
@@ -68,9 +68,9 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
         mBtnRecord.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {
-                MediaMuxerUtils mMuxerUtils = MediaMuxerUtils.getMuxerRunnableInstance();
+                RecordMp4 mMuxerUtils = RecordMp4.getMuxerRunnableInstance();
                 if(!isRecording){
-                    mMuxerUtils.startMuxerThread(mCamManager.getCameraDirection());
+                    mMuxerUtils.startMuxerThread();
                     mBtnRecord.setText("停止录像");
                 }else{
                     mMuxerUtils.stopMuxerThread();
@@ -126,7 +126,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
 						@Override
 						public void onStopped() {					
 							// 对焦成功，隐藏对焦图标
-							mCamManager.cameraFocus(new CameraUtils.OnCameraFocusResult() {
+							mCamManager.cameraFocus(new CameraManager.OnCameraFocusResult() {
 								@Override
 								public void onFocusResult(boolean reslut) {
 						

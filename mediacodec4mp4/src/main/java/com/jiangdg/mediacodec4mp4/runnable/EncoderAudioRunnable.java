@@ -1,8 +1,4 @@
-package com.jiangdg.mediacodecdemo.runnable;
-
-import java.io.IOException;
-import java.lang.ref.WeakReference;
-import java.nio.ByteBuffer;
+package com.jiangdg.mediacodec4mp4.runnable;
 
 import android.annotation.SuppressLint;
 import android.media.AudioFormat;
@@ -16,7 +12,11 @@ import android.os.Build;
 import android.os.Process;
 import android.util.Log;
 
-import com.jiangdg.mediacodecdemo.utils.MediaMuxerUtils;
+import com.jiangdg.mediacodec4mp4.RecordMp4;
+
+import java.io.IOException;
+import java.lang.ref.WeakReference;
+import java.nio.ByteBuffer;
 
 /** 对ACC音频进行编码
  * Created by jiangdongguo on 2017/5/6.
@@ -40,12 +40,12 @@ public class EncoderAudioRunnable implements Runnable {
     // 编码器
     private boolean isExit = false;
     private boolean isEncoderStarted = false;
-    private WeakReference<MediaMuxerUtils> muxerRunnableRf;
+    private WeakReference<RecordMp4> muxerRunnableRf;
     private MediaCodec mAudioEncoder;
 	private long prevPresentationTimes;
 	private MediaFormat mediaFormat;
 
-    public EncoderAudioRunnable(WeakReference<MediaMuxerUtils> muxerRunnableRf){
+    public EncoderAudioRunnable(WeakReference<RecordMp4> muxerRunnableRf){
         this.muxerRunnableRf = muxerRunnableRf;
         initMediaCodec();
     }
@@ -141,9 +141,9 @@ public class EncoderAudioRunnable implements Runnable {
                 // 编码器输出缓存区格式改变，通常在存储数据之前且只会改变一次
                 // 这里设置混合器视频轨道，如果音频已经添加则启动混合器（保证音视频同步）
                 MediaFormat newFormat = mAudioEncoder.getOutputFormat();
-                MediaMuxerUtils mMuxerUtils = muxerRunnableRf.get();
+                RecordMp4 mMuxerUtils = muxerRunnableRf.get();
                 if(mMuxerUtils != null){
-                    mMuxerUtils.setMediaFormat(MediaMuxerUtils.TRACK_AUDIO,newFormat);
+                    mMuxerUtils.setMediaFormat(RecordMp4.TRACK_AUDIO,newFormat);
                 }
                 Log.i(TAG,"编码器输出缓存区格式改变，添加视频轨道到混合器");
             }else{
@@ -176,11 +176,11 @@ public class EncoderAudioRunnable implements Runnable {
                         outputBuffer.limit(mBufferInfo.offset+mBufferInfo.size);
                     }
                     // 对输出缓存区的H.264数据进行混合处理
-                    MediaMuxerUtils mMuxerUtils = muxerRunnableRf.get();
+                    RecordMp4 mMuxerUtils = muxerRunnableRf.get();
                     mBufferInfo.presentationTimeUs = getPTSUs();
                     if(mMuxerUtils != null && mMuxerUtils.isMuxerStarted()){
                         Log.d(TAG,"------混合音频数据-------");
-                        mMuxerUtils.addMuxerData(new MediaMuxerUtils.MuxerData(MediaMuxerUtils.TRACK_AUDIO,outputBuffer,mBufferInfo));
+                        mMuxerUtils.addMuxerData(new RecordMp4.MuxerData(RecordMp4.TRACK_AUDIO,outputBuffer,mBufferInfo));
                         prevPresentationTimes = mBufferInfo.presentationTimeUs;
                     }
                 }

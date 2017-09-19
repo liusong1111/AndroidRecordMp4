@@ -1,9 +1,4 @@
-package com.jiangdg.mediacodecdemo.utils;
-
-import java.io.File;
-import java.lang.ref.WeakReference;
-import java.nio.ByteBuffer;
-import java.util.Vector;
+package com.jiangdg.mediacodec4mp4;
 
 import android.media.MediaCodec;
 import android.media.MediaFormat;
@@ -11,16 +6,22 @@ import android.media.MediaMuxer;
 import android.os.Environment;
 import android.util.Log;
 
-import com.jiangdg.mediacodecdemo.runnable.EncoderAudioRunnable;
-import com.jiangdg.mediacodecdemo.runnable.EncoderVideoRunnable;
+import com.jiangdg.mediacodec4mp4.runnable.EncoderAudioRunnable;
+import com.jiangdg.mediacodec4mp4.runnable.EncoderParams;
+import com.jiangdg.mediacodec4mp4.runnable.EncoderVideoRunnable;
+
+import java.io.File;
+import java.lang.ref.WeakReference;
+import java.nio.ByteBuffer;
+import java.util.Vector;
 
 /**MP4混合器
  * Created by jiangdongguo on 2017/5/6.
  */
 
-public class MediaMuxerUtils{
+public class RecordMp4 {
     private static final String ROOT_PATH = Environment.getExternalStorageDirectory().getAbsolutePath();
-    private static final String TAG = "MediaMuxerUtils";
+    private static final String TAG = "RecordMp4";
     public static final int TRACK_VIDEO = 0;
     public static final int TRACK_AUDIO = 1;
     private boolean isVideoAdded;
@@ -40,18 +41,19 @@ public class MediaMuxerUtils{
     private Thread mMuxerThread;
     private Thread mVideoThread;
     private Thread mAudioThread;
-    private boolean isFrontCamera;
-    private static MediaMuxerUtils muxerUtils;
+    private static RecordMp4 muxerUtils;
 
-    private MediaMuxerUtils(){}
+    private EncoderParams mParams;
 
-    public static MediaMuxerUtils getMuxerRunnableInstance(){
+    private RecordMp4(){}
+
+    public static RecordMp4 getMuxerRunnableInstance(){
         if(muxerUtils == null){
-            muxerUtils = new MediaMuxerUtils();
+            muxerUtils = new RecordMp4();
         }
         return muxerUtils;
     }
-    
+
     private void initMuxer(){
 		try {
 			mMuxer = new MediaMuxer(ROOT_PATH + File.separator
@@ -61,16 +63,23 @@ public class MediaMuxerUtils{
 			e.printStackTrace();
 		}
         mMuxerDatas = new Vector<MuxerData>();
-        videoRunnable = new EncoderVideoRunnable(new WeakReference<MediaMuxerUtils>(this));
-        audioRunnable = new EncoderAudioRunnable(new WeakReference<MediaMuxerUtils>(this));
+        videoRunnable = new EncoderVideoRunnable(new WeakReference<RecordMp4>(this));
+        audioRunnable = new EncoderAudioRunnable(new WeakReference<RecordMp4>(this));
         mVideoThread = new Thread(videoRunnable);
         mAudioThread = new Thread(audioRunnable);
-        videoRunnable.setFrontCamera(isFrontCamera);
         mAudioThread.start();
         mVideoThread.start();
-         isExit = false;
+        isExit = false;
     }
-    
+
+    public EncoderParams getRecordParams() {
+        return mParams;
+    }
+
+    public void setRecordParams(EncoderParams mParams) {
+        this.mParams = mParams;
+    }
+
     class MediaMuxerRunnable implements  Runnable{
         @Override
         public void run() {
@@ -199,11 +208,12 @@ public class MediaMuxerUtils{
         }
     }
 
-    public void startMuxerThread(boolean isFrontCamera){
+    public void startMuxerThread(){
         Log.d(TAG,"---启动混合器线程---");
-        this.isFrontCamera = isFrontCamera;
+        if(mParams == null)
+            new NullPointerException("Params Can not be null,should call setRecordParams()");
     	if(mMuxerThread == null){
-    		synchronized (MediaMuxerUtils.this) {
+    		synchronized (RecordMp4.this) {
     	        mMuxerThread =  new Thread(new MediaMuxerRunnable());
     	        mMuxerThread.start();
 			}
