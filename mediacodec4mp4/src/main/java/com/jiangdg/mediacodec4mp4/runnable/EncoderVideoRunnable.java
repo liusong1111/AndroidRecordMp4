@@ -10,7 +10,6 @@ import android.os.Environment;
 import android.util.Log;
 
 import com.jiangdg.mediacodec4mp4.RecordMp4;
-import com.jiangdg.mediacodec4mp4.CameraManager;
 import com.jiangdg.yuvosd.YuvUtils;
 
 import java.io.BufferedOutputStream;
@@ -48,15 +47,18 @@ public class EncoderVideoRunnable implements Runnable {
     private long prevPresentationTimes;
     private MediaFormat mFormat;
     private static String path = Environment.getExternalStorageDirectory().getAbsolutePath() + "/test1.h264";
-    private BufferedOutputStream outputStream;
+//    private BufferedOutputStream outputStream;
     private boolean isAddKeyFrame = false;
     private EncoderParams mParams;
 
-    // 质量等级
+    // 码率等级
     public enum Quality{
         LOW, MIDDLE, HIGH
     }
-
+    // 帧率
+    public enum FrameRate{
+        _20fps,_25fps,_30fps
+    }
 
     public EncoderVideoRunnable(WeakReference<RecordMp4> mRecordRf) {
         this.mRecordRf = mRecordRf;
@@ -79,19 +81,21 @@ public class EncoderVideoRunnable implements Runnable {
             e.printStackTrace();
         }
         if (mParams.isPhoneHorizontal()) {
-            mFormat = MediaFormat.createVideoFormat(MIME_TYPE, mParams.getFrameHeight(), mParams.getFrameWidth());
-        } else {
+            // 手机水平拍摄
             mFormat = MediaFormat.createVideoFormat(MIME_TYPE, mParams.getFrameWidth(), mParams.getFrameHeight());
+        } else {
+            // 手机垂直拍摄
+            mFormat = MediaFormat.createVideoFormat(MIME_TYPE, mParams.getFrameHeight(), mParams.getFrameWidth());
         }
         mFormat.setInteger(MediaFormat.KEY_BIT_RATE, getBitrate());
         mFormat.setInteger(MediaFormat.KEY_FRAME_RATE, getFrameRate());
-        mFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, mColorFormat); // 颜色格式
+        mFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, mColorFormat);         // 颜色格式
         mFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, FRAME_INTERVAL);
     }
 
     private int getFrameRate() {
-        return mParams.getFrameRateQuality() == Quality.LOW ? 20 :
-                (mParams.getFrameRateQuality()== Quality.MIDDLE ? 25 : 30);
+        return mParams.getFrameRateDegree() == FrameRate._20fps ? 20 :
+                (mParams.getFrameRateDegree()== FrameRate._25fps ? 25 : 30);
     }
 
     private int getBitrate() {
@@ -146,8 +150,6 @@ public class EncoderVideoRunnable implements Runnable {
             isEncoderStart = true;
             Log.d(TAG, "配置、启动视频编码器");
         }
-        //创建保存编码后数据的文件
-        createfile();
     }
 
     private void stopCodec() {
@@ -159,12 +161,6 @@ public class EncoderVideoRunnable implements Runnable {
             isEncoderStart = false;
             Log.d(TAG, "关闭视频编码器");
         }
-        try {
-            outputStream.flush();
-            outputStream.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
     }
 
     long millisPerframe = 1000 / 20;
@@ -172,6 +168,8 @@ public class EncoderVideoRunnable implements Runnable {
 
     @TargetApi(21)
     public void addData(byte[] yuvData) {
+        if(! isEncoderStart)
+            return;
         try {
             if (lastPush == 0) {
                 lastPush = System.currentTimeMillis();
@@ -235,6 +233,7 @@ public class EncoderVideoRunnable implements Runnable {
     @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     @Override
     public void run() {
+        // 初始化编码器
         if (!isEncoderStart) {
             try {
                 Thread.sleep(200);
@@ -395,17 +394,4 @@ public class EncoderVideoRunnable implements Runnable {
         }
         return result;
     }
-
-    private void createfile() {
-        File file = new File(path);
-        if (file.exists()) {
-            file.delete();
-        }
-        try {
-            outputStream = new BufferedOutputStream(new FileOutputStream(file));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
 }

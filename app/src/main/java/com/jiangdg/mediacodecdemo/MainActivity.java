@@ -74,19 +74,17 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
             public void onClick(View view) {
                 RecordMp4 mMuxerUtils = RecordMp4.getMuxerRunnableInstance();
                 if(!isRecording){
-                    String videoPath =  RecordMp4.ROOT_PATH+ File.separator + System.currentTimeMillis() + ".mp4";
-                    int width = CameraManager.PREVIEW_WIDTH;
-                    int height = CameraManager.PREVIEW_HEIGHT;
-
-                    mMuxerUtils.startMuxerThread(new EncoderParams(
-                            videoPath,      // 文件保持路径
-                            width,          // 分辨率-宽
-                            height,         // 分辨率-高
-                            EncoderVideoRunnable.Quality.MIDDLE,    // 中等码率
-                            EncoderVideoRunnable.Quality.MIDDLE,    // 帧率：25fps
-                            false,  // 后置摄像头，true为前置摄像头
-                            false   // 垂直拍摄，true为水平拍摄
-                    ), new RecordMp4.OnRecordResultListener() {  
+                    // 配置参数
+                    EncoderParams params = new EncoderParams();
+                    params.setPath(RecordMp4.ROOT_PATH+ File.separator + System.currentTimeMillis() + ".mp4");
+                    params.setFrameWidth(CameraManager.PREVIEW_WIDTH);
+                    params.setFrameHeight(CameraManager.PREVIEW_HEIGHT);
+                    params.setBitRateQuality(EncoderVideoRunnable.Quality.LOW);
+                    params.setFrameRateDegree(EncoderVideoRunnable.FrameRate._30fps);
+                    params.setFrontCamera(mCamManager.getCameraDirection());
+                    params.setPhoneHorizontal(false);
+                    // 开始录制
+                    mMuxerUtils.startMuxerThread(params, new RecordMp4.OnRecordResultListener() {
                         @Override
                         public void onSuccuss(String path) {
                             showMsg("保存路径："+path);

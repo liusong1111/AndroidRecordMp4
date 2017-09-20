@@ -11,6 +11,7 @@ import com.jiangdg.mediacodec4mp4.runnable.EncoderParams;
 import com.jiangdg.mediacodec4mp4.runnable.EncoderVideoRunnable;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.Vector;
@@ -20,7 +21,7 @@ import java.util.Vector;
  */
 
 public class RecordMp4 {
-    private static final String ROOT_PATH = Environment.getExternalStorageDirectory().getAbsolutePath();
+    public static final String ROOT_PATH = Environment.getExternalStorageDirectory().getAbsolutePath();
     private static final String TAG = "RecordMp4";
     public static final int TRACK_VIDEO = 0;
     public static final int TRACK_AUDIO = 1;
@@ -45,6 +46,11 @@ public class RecordMp4 {
 
     private EncoderParams mParams;
 
+    public interface OnRecordResultListener{
+        void onSuccuss(String path);
+        void onFailed(String tipMsg);
+    }
+
     private RecordMp4(){}
 
     public static RecordMp4 getMuxerRunnableInstance(){
@@ -54,17 +60,12 @@ public class RecordMp4 {
         return muxerUtils;
     }
 
-    private void initMuxer(){
-		try {
-			mMuxer = new MediaMuxer(ROOT_PATH + File.separator
-					+ System.currentTimeMillis() + ".mp4",
-					MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-        mMuxerDatas = new Vector<MuxerData>();
-        videoRunnable = new EncoderVideoRunnable(new WeakReference<RecordMp4>(this));
-        audioRunnable = new EncoderAudioRunnable(new WeakReference<RecordMp4>(this));
+    private void initMuxer() throws IOException{
+        mMuxer = new MediaMuxer(mParams.getPath(),
+                MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+        mMuxerDatas = new Vector<>();
+        videoRunnable = new EncoderVideoRunnable(new WeakReference<>(this));
+        audioRunnable = new EncoderAudioRunnable(new WeakReference<>(this));
         mVideoThread = new Thread(videoRunnable);
         mAudioThread = new Thread(audioRunnable);
         mAudioThread.start();
@@ -74,61 +75,6 @@ public class RecordMp4 {
 
     public EncoderParams getRecordParams() {
         return mParams;
-    }
-
-    public void setRecordParams(EncoderParams mParams) {
-        this.mParams = mParams;
-    }
-
-    class MediaMuxerRunnable implements  Runnable{
-        @Override
-        public void run() {
-        	initMuxer();
-            while (!isExit){
-                // 混合器没有启动或数据缓存为空，则阻塞混合线程等待启动(数据输入)
-            	if(isMuxerStarted){
-                    // 从缓存读取数据写入混合器中       
-                    if(mMuxerDatas.isEmpty()){
-                    	Log.w(TAG, "run--->混合器没有数据，阻塞线程等待");
-                        synchronized (lock){
-                            try{
-                                lock.wait();
-                            }catch(Exception e){
-                                e.printStackTrace();
-                            }
-                        }
-                    }else{
-                        MuxerData data = mMuxerDatas.remove(0);
-                        if(data != null){
-                            int track = 0;
-                            try{
-                                if(data.trackIndex == TRACK_VIDEO){
-                                    track = videoTrack;
-                                    Log.d(TAG,"---写入视频数据---");
-                                }else if(data.trackIndex == TRACK_AUDIO){
-                                    Log.d(TAG,"---写入音频数据---");
-                                    track = audioTrack;
-                                }
-                                mMuxer.writeSampleData(track,data.byteBuf,data.bufferInfo);
-                            }catch(Exception e){
-                                Log.e(TAG,"写入数据到混合器失败，track="+track);
-                                e.printStackTrace();
-                            }
-                        }
-                    }
-            	}else{
-                 	Log.w(TAG, "run--->混合器没有启动，阻塞线程等待");
-                    synchronized (lock){
-                        try{
-                            lock.wait();
-                        }catch(Exception e){
-                            e.printStackTrace();
-                        }
-                    }
-                }
-            }
-            stopMuxer();
-        }
     }
 
     private void startMuxer(){
@@ -208,13 +154,82 @@ public class RecordMp4 {
         }
     }
 
-    public void startMuxerThread(){
+    public void startMuxerThread(final EncoderParams mParams, final OnRecordResultListener listener){
         Log.d(TAG,"---启动混合器线程---");
         if(mParams == null)
             new NullPointerException("Params Can not be null,should call setRecordParams()");
-    	if(mMuxerThread == null){
+    	this.mParams = mParams;
+
+        if(mMuxerThread == null){
     		synchronized (RecordMp4.this) {
-    	        mMuxerThread =  new Thread(new MediaMuxerRunnable());
+    	        mMuxerThread =  new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            initMuxer();
+                        } catch (IOException e) {
+                            if(listener != null){
+                                listener.onFailed("录制失败：muxer error");
+                            }
+                            e.printStackTrace();
+                        }
+                        while (!isExit){
+                            // 混合器没有启动或数据缓存为空，则阻塞混合线程等待启动(数据输入)
+                            if(isMuxerStarted){
+                                // 从缓存读取数据写入混合器中
+                                if(mMuxerDatas.isEmpty()){
+                                    Log.w(TAG, "run--->混合器没有数据，阻塞线程等待");
+                                    synchronized (lock){
+                                        try{
+                                            lock.wait();
+                                        }catch(Exception e){
+                                            e.printStackTrace();
+                                        }
+                                    }
+                                }else{
+                                    MuxerData data = mMuxerDatas.remove(0);
+                                    if(data != null){
+                                        int track = 0;
+                                        try{
+                                            if(data.trackIndex == TRACK_VIDEO){
+                                                track = videoTrack;
+                                                Log.d(TAG,"---写入视频数据---");
+                                            }else if(data.trackIndex == TRACK_AUDIO){
+                                                Log.d(TAG,"---写入音频数据---");
+                                                track = audioTrack;
+                                            }
+                                            mMuxer.writeSampleData(track,data.byteBuf,data.bufferInfo);
+                                        }catch(Exception e){
+                                            Log.e(TAG,"写入数据到混合器失败，track="+track);
+                                            e.printStackTrace();
+                                        }
+                                    }
+                                }
+                            }else{
+                                Log.w(TAG, "run--->混合器没有启动，阻塞线程等待");
+                                synchronized (lock){
+                                    try{
+                                        lock.wait();
+                                    }catch(Exception e){
+                                        e.printStackTrace();
+                                    }
+                                }
+                            }
+                        }
+
+                        try {
+                            stopMuxer();
+                            if(listener != null){
+                                listener.onSuccuss(mParams.getPath());
+                            }
+                        }catch (IllegalStateException e){
+                            e.printStackTrace();
+                            if(listener != null){
+                                listener.onFailed("录制失败：muxer stop failed");
+                            }
+                        }
+                    }
+                });
     	        mMuxerThread.start();
 			}
     	}
