@@ -1,4 +1,4 @@
-package com.jiangdg.mediacodec4mp4;
+package com.jiangdg.mediacodec4mp4.utils;
 
 import android.annotation.SuppressLint;
 import android.content.Context;

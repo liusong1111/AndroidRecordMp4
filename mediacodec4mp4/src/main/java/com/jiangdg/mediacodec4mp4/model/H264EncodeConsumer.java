@@ -1,4 +1,4 @@
-package com.jiangdg.mediacodec4mp4.runnable;
+package com.jiangdg.mediacodec4mp4.model;
 
 import android.annotation.TargetApi;
 import android.media.MediaCodec;
@@ -6,15 +6,12 @@ import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
 import android.media.MediaFormat;
 import android.os.Build;
-import android.os.Environment;
 import android.util.Log;
 
 import com.jiangdg.mediacodec4mp4.RecordMp4;
+import com.jiangdg.mediacodec4mp4.bean.EncoderParams;
 import com.jiangdg.yuvosd.YuvUtils;
 
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
@@ -26,16 +23,14 @@ import java.util.Date;
  * Created by jiangdongguo on 2017/5/6.
  */
 
-public class EncoderVideoRunnable implements Runnable {
-    private static final String TAG = "EncoderVideoRunnable";
+public class H264EncodeConsumer extends Thread {
+    private static final String TAG = "H264EncodeConsumer";
     private static final String MIME_TYPE = "video/avc";
     // 间隔1s插入一帧关键帧
     private static final int FRAME_INTERVAL = 1;
     // 绑定编码器缓存区超时时间为10s
     private static final int TIMES_OUT = 10000;
 
-    // MP4混合器
-    private WeakReference<RecordMp4> mRecordRf;
     // 硬编码器
     private MediaCodec mVideoEncodec;
     private int mColorFormat;
@@ -44,12 +39,10 @@ public class EncoderVideoRunnable implements Runnable {
     private boolean isAddTimeOsd = true;
 
     private byte[] mFrameData;
-    private long prevPresentationTimes;
-    private MediaFormat mFormat;
-    private static String path = Environment.getExternalStorageDirectory().getAbsolutePath() + "/test1.h264";
-//    private BufferedOutputStream outputStream;
     private boolean isAddKeyFrame = false;
-    private EncoderParams mParams;
+    private WeakReference<EncoderParams> mParamsRef;
+    private MediaFormat newFormat;
+    private WeakReference<MediaMuxerUtil> mMuxerRef;
 
     // 码率等级
     public enum Quality{
@@ -60,45 +53,29 @@ public class EncoderVideoRunnable implements Runnable {
         _20fps,_25fps,_30fps
     }
 
-    public EncoderVideoRunnable(WeakReference<RecordMp4> mRecordRf) {
-        this.mRecordRf = mRecordRf;
-        mParams = this.mRecordRf.get().getRecordParams();
-        mFrameData = new byte[mParams.getFrameWidth() * mParams.getFrameHeight() * 3 / 2];
-        initMediaFormat();
-    }
+    public synchronized void setTmpuMuxer(MediaMuxerUtil mMuxer,EncoderParams mParams){
+        this.mMuxerRef =  new WeakReference<>(mMuxer);
+        this.mParamsRef = new WeakReference<>(mParams);
+        MediaMuxerUtil muxer = mMuxerRef.get();
 
-    private void initMediaFormat() {
-        try {
-            MediaCodecInfo mCodecInfo = selectSupportCodec(MIME_TYPE);
-            if (mCodecInfo == null) {
-                Log.d(TAG, "匹配编码器失败" + MIME_TYPE);
-                return;
-            }
-            mColorFormat = selectSupportColorFormat(mCodecInfo, MIME_TYPE);
-            mVideoEncodec = MediaCodec.createByCodecName(mCodecInfo.getName());
-        } catch (IOException e) {
-            Log.e(TAG, "创建编码器失败" + e.getMessage());
-            e.printStackTrace();
+        if (muxer != null && newFormat != null) {
+            muxer.addTrack(newFormat, true);
         }
-        if (mParams.isPhoneHorizontal()) {
-            // 手机水平拍摄
-            mFormat = MediaFormat.createVideoFormat(MIME_TYPE, mParams.getFrameWidth(), mParams.getFrameHeight());
-        } else {
-            // 手机垂直拍摄
-            mFormat = MediaFormat.createVideoFormat(MIME_TYPE, mParams.getFrameHeight(), mParams.getFrameWidth());
-        }
-        mFormat.setInteger(MediaFormat.KEY_BIT_RATE, getBitrate());
-        mFormat.setInteger(MediaFormat.KEY_FRAME_RATE, getFrameRate());
-        mFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, mColorFormat);         // 颜色格式
-        mFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, FRAME_INTERVAL);
     }
 
     private int getFrameRate() {
+        if(mParamsRef == null)
+            return  -1;
+        EncoderParams mParams = mParamsRef.get();
+
         return mParams.getFrameRateDegree() == FrameRate._20fps ? 20 :
                 (mParams.getFrameRateDegree()== FrameRate._25fps ? 25 : 30);
     }
 
     private int getBitrate() {
+        if(mParamsRef == null)
+            return  -1;
+        EncoderParams mParams = mParamsRef.get();
         int mWidth = mParams.getFrameWidth();
         int mHeight = mParams.getFrameHeight();
         int bitRate = (int)(mWidth * mHeight * 20 * 2 *0.07f);
@@ -144,11 +121,42 @@ public class EncoderVideoRunnable implements Runnable {
 
     private void startCodec() {
         isExit = false;
+        if(mParamsRef == null)
+            return;
+        EncoderParams mParams = mParamsRef.get();
+        mFrameData = new byte[mParams.getFrameWidth() * mParams.getFrameHeight() * 3 / 2];
+        try {
+            MediaCodecInfo mCodecInfo = selectSupportCodec(MIME_TYPE);
+            if (mCodecInfo == null) {
+                if(RecordMp4.DEBUG)
+                    Log.d(TAG, "匹配编码器失败" + MIME_TYPE);
+                return;
+            }
+            mColorFormat = selectSupportColorFormat(mCodecInfo, MIME_TYPE);
+            mVideoEncodec = MediaCodec.createByCodecName(mCodecInfo.getName());
+        } catch (IOException e) {
+            if(RecordMp4.DEBUG)
+                Log.e(TAG, "创建编码器失败" + e.getMessage());
+            e.printStackTrace();
+        }
+        MediaFormat mFormat;
+        if (mParams.isPhoneHorizontal()) {
+            // 手机水平拍摄
+            mFormat = MediaFormat.createVideoFormat(MIME_TYPE, mParams.getFrameWidth(), mParams.getFrameHeight());
+        } else {
+            // 手机垂直拍摄
+            mFormat = MediaFormat.createVideoFormat(MIME_TYPE, mParams.getFrameHeight(), mParams.getFrameWidth());
+        }
+        mFormat.setInteger(MediaFormat.KEY_BIT_RATE, getBitrate());
+        mFormat.setInteger(MediaFormat.KEY_FRAME_RATE, getFrameRate());
+        mFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, mColorFormat);         // 颜色格式
+        mFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, FRAME_INTERVAL);
         if (mVideoEncodec != null) {
             mVideoEncodec.configure(mFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
             mVideoEncodec.start();
             isEncoderStart = true;
-            Log.d(TAG, "配置、启动视频编码器");
+            if(RecordMp4.DEBUG)
+                Log.d(TAG, "配置、启动视频编码器");
         }
     }
 
@@ -159,7 +167,8 @@ public class EncoderVideoRunnable implements Runnable {
             mVideoEncodec = null;
             isAddKeyFrame = false;
             isEncoderStart = false;
-            Log.d(TAG, "关闭视频编码器");
+            if(RecordMp4.DEBUG)
+                Log.d(TAG, "关闭视频编码器");
         }
     }
 
@@ -168,7 +177,7 @@ public class EncoderVideoRunnable implements Runnable {
 
     @TargetApi(21)
     public void addData(byte[] yuvData) {
-        if(! isEncoderStart)
+        if(! isEncoderStart || mParamsRef == null)
             return;
         try {
             if (lastPush == 0) {
@@ -182,6 +191,7 @@ public class EncoderVideoRunnable implements Runnable {
             }
             ByteBuffer[] inputBuffers = mVideoEncodec.getInputBuffers();
             //前置摄像头旋转270度，后置摄像头旋转90度
+            EncoderParams mParams = mParamsRef.get();
             int mWidth = mParams.getFrameWidth();
             int mHeight = mParams.getFrameHeight();
             byte[] rotateNv21 = new byte[mWidth * mHeight * 3 / 2];
@@ -219,7 +229,7 @@ public class EncoderVideoRunnable implements Runnable {
                 inputBuffer.clear();
                 inputBuffer.put(mFrameData);
                 inputBuffer.clear();
-                mVideoEncodec.queueInputBuffer(inputBufferIndex, 0, mFrameData.length, getPTSUs(), MediaCodec.BUFFER_FLAG_KEY_FRAME);
+                mVideoEncodec.queueInputBuffer(inputBufferIndex, 0, mFrameData.length, System.nanoTime() / 1000, MediaCodec.BUFFER_FLAG_KEY_FRAME);
 
                 if (time > 0)
                     Thread.sleep(time / 2);
@@ -253,7 +263,8 @@ public class EncoderVideoRunnable implements Runnable {
             do {
                 outputBufferIndex = mVideoEncodec.dequeueOutputBuffer(mBufferInfo, TIMES_OUT);
                 if (outputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
-                    Log.i(TAG, "获得编码器输出缓存区超时");
+                    if(RecordMp4.DEBUG)
+                        Log.i(TAG, "获得编码器输出缓存区超时");
                 } else if (outputBufferIndex == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
                     // 如果API小于21，APP需要重新绑定编码器的输入缓存区；
                     // 如果API大于21，则无需处理INFO_OUTPUT_BUFFERS_CHANGED
@@ -263,12 +274,17 @@ public class EncoderVideoRunnable implements Runnable {
                 } else if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                     // 编码器输出缓存区格式改变，通常在存储数据之前且只会改变一次
                     // 这里设置混合器视频轨道，如果音频已经添加则启动混合器（保证音视频同步）
-                    MediaFormat newFormat = mVideoEncodec.getOutputFormat();
-                    RecordMp4 mMuxerUtils = mRecordRf.get();
-                    if (mMuxerUtils != null) {
-                        mMuxerUtils.setMediaFormat(RecordMp4.TRACK_VIDEO, newFormat);
+                    synchronized (H264EncodeConsumer.this) {
+                        newFormat = mVideoEncodec.getOutputFormat();
+                        if(mMuxerRef != null){
+                            MediaMuxerUtil muxer = mMuxerRef.get();
+                            if (muxer != null) {
+                                muxer.addTrack(newFormat, true);
+                            }
+                        }
                     }
-                    Log.i(TAG, "编码器输出缓存区格式改变，添加视频轨道到混合器");
+                    if(RecordMp4.DEBUG)
+                        Log.i(TAG, "编码器输出缓存区格式改变，添加视频轨道到混合器");
                 } else {
                     // 获取一个只读的输出缓存区inputBuffer ，它包含被编码好的数据
                     ByteBuffer outputBuffer = null;
@@ -284,33 +300,34 @@ public class EncoderVideoRunnable implements Runnable {
                         outputBuffer.limit(mBufferInfo.offset + mBufferInfo.size);
                     }
                     // 根据NALU类型判断帧类型
-                    RecordMp4 mMuxerUtils = mRecordRf.get();
                     int type = outputBuffer.get(4) & 0x1F;
-                    Log.d(TAG, "------还有数据---->" + type);
+                    if(RecordMp4.DEBUG)
+                        Log.d(TAG, "------还有数据---->" + type);
                     if (type == 7 || type == 8) {
-                        Log.e(TAG, "------PPS、SPS帧(非图像数据)，忽略-------");
+                        if(RecordMp4.DEBUG)
+                            Log.e(TAG, "------PPS、SPS帧(非图像数据)，忽略-------");
                         mBufferInfo.size = 0;
                     } else if (type == 5) {
                         // 录像时，第1秒画面会静止，这是由于音视轨没有完全被添加
                         // Muxer没有启动
-                        Log.e(TAG, "------I帧(关键帧)-------");
-                        if (mMuxerUtils != null && mMuxerUtils.isMuxerStarted()) {
-                            mMuxerUtils.addMuxerData(new RecordMp4.MuxerData(
-                                    RecordMp4.TRACK_VIDEO, outputBuffer,
-                                    mBufferInfo));
-                            prevPresentationTimes = mBufferInfo.presentationTimeUs;
+                        // 添加视频流到混合器
+                        if(mMuxerRef != null){
+                            MediaMuxerUtil muxer = mMuxerRef.get();
+                            if (muxer != null) {
+                                Log.i(TAG,"------编码混合  视频关键帧数据-----");
+                                muxer.pumpStream(outputBuffer, mBufferInfo, true);
+                            }
                             isAddKeyFrame = true;
-                            Log.e(TAG, "----------->添加关键帧到混合器");
                         }
                     } else {
                         if (isAddKeyFrame) {
-                            Log.d(TAG, "------非I帧(type=1)，添加到混合器-------");
-                            if (mMuxerUtils != null && mMuxerUtils.isMuxerStarted()) {
-                                mMuxerUtils.addMuxerData(new RecordMp4.MuxerData(
-                                        RecordMp4.TRACK_VIDEO, outputBuffer,
-                                        mBufferInfo));
-                                prevPresentationTimes = mBufferInfo.presentationTimeUs;
-                                Log.d(TAG, "------添加到混合器");
+                            // 添加视频流到混合器
+                            if(isAddKeyFrame && mMuxerRef != null){
+                                MediaMuxerUtil muxer = mMuxerRef.get();
+                                if (muxer != null) {
+                                    Log.i(TAG,"------编码混合  视频普通帧数据-----"+mBufferInfo.size);
+                                    muxer.pumpStream(outputBuffer, mBufferInfo, true);
+                                }
                             }
                         }
                     }
@@ -385,13 +402,5 @@ public class EncoderVideoRunnable implements Runnable {
     private boolean isKITKAT() {
         // API<=19
         return Build.VERSION.SDK_INT <= Build.VERSION_CODES.KITKAT;
-    }
-
-    private long getPTSUs() {
-        long result = System.nanoTime() / 1000;
-        if (result < prevPresentationTimes) {
-            result = (prevPresentationTimes - result) + result;
-        }
-        return result;
     }
 }

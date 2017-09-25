@@ -11,10 +11,12 @@ import android.widget.Button;
 import android.widget.Toast;
 
 import com.jiangdg.mediacodec4mp4.RecordMp4;
-import com.jiangdg.mediacodec4mp4.CameraManager;
-import com.jiangdg.mediacodec4mp4.SensorAccelerometer;
-import com.jiangdg.mediacodec4mp4.runnable.EncoderParams;
-import com.jiangdg.mediacodec4mp4.runnable.EncoderVideoRunnable;
+import com.jiangdg.mediacodec4mp4.bean.YUVBean;
+import com.jiangdg.mediacodec4mp4.model.AACEncodeConsumer;
+import com.jiangdg.mediacodec4mp4.utils.CameraManager;
+import com.jiangdg.mediacodec4mp4.utils.SensorAccelerometer;
+import com.jiangdg.mediacodec4mp4.model.H264EncodeConsumer;
+import com.jiangdg.mediacodec4mp4.bean.EncoderParams;
 import com.jiangdg.yuvosd.YuvUtils;
 
 import java.io.File;
@@ -27,19 +29,17 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
     private boolean isRecording;
 	//加速传感器
 	private static SensorAccelerometer mSensorAccelerometer;
+    private RecordMp4 mRecMp4;
 
     byte[] nv21 = new byte[CameraManager.PREVIEW_WIDTH * CameraManager.PREVIEW_HEIGHT * 3/2];
 
     private CameraManager.OnPreviewFrameResult mPreviewListener = new CameraManager.OnPreviewFrameResult() {
         @Override
         public void onPreviewResult(byte[] data, Camera camera) {
-            mCamManager.getCameraIntance().addCallbackBuffer(data);
-            if(CameraManager.isUsingYv12 ){
-                YuvUtils.swapYV12ToNV21(data, nv21, CameraManager.PREVIEW_WIDTH, CameraManager.PREVIEW_HEIGHT);
-                RecordMp4.getMuxerRunnableInstance().addVideoFrameData(nv21);
-            }else{
-                RecordMp4.getMuxerRunnableInstance().addVideoFrameData(data);
+            if(mRecMp4 != null){
+                mRecMp4.feedYUV2Consumer(new YUVBean(data,System.currentTimeMillis()));
             }
+            mCamManager.getCameraIntance().addCallbackBuffer(data);
         }
     };
 
@@ -48,8 +48,10 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         mCamManager = CameraManager.getCamManagerInstance(MainActivity.this);
-		//实例化加速传感器
+		// 实例化加速传感器
 		mSensorAccelerometer = SensorAccelerometer.getSensorInstance();
+        // 初始化录制参数
+        mRecMp4 = RecordMp4.getRecordMp4Instance();
 		
         mSurfaceView = (SurfaceView)findViewById(R.id.main_record_surface);
         mSurfaceView.getHolder().addCallback(this);
@@ -72,32 +74,29 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
         mBtnRecord.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {
-                RecordMp4 mMuxerUtils = RecordMp4.getMuxerRunnableInstance();
-                if(!isRecording){
-                    // 配置参数
-                    EncoderParams params = new EncoderParams();
-                    params.setPath(RecordMp4.ROOT_PATH+ File.separator + System.currentTimeMillis() + ".mp4");
-                    params.setFrameWidth(CameraManager.PREVIEW_WIDTH);
-                    params.setFrameHeight(CameraManager.PREVIEW_HEIGHT);
-                    params.setBitRateQuality(EncoderVideoRunnable.Quality.LOW);
-                    params.setFrameRateDegree(EncoderVideoRunnable.FrameRate._30fps);
-                    params.setFrontCamera(mCamManager.getCameraDirection());
-                    params.setPhoneHorizontal(false);
-                    // 开始录制
-                    mMuxerUtils.startMuxerThread(params, new RecordMp4.OnRecordResultListener() {
-                        @Override
-                        public void onSuccuss(String path) {
-                            showMsg("保存路径："+path);
-                        }
 
-                        @Override
-                        public void onFailed(String tipMsg) {
-                            showMsg(tipMsg);
-                        }
-                    });
+                if(!isRecording){
+                    // 开始录制
+                    EncoderParams mParams = new EncoderParams();
+                    mParams.setVideoPath(RecordMp4.ROOT_PATH+ File.separator + System.currentTimeMillis() + ".mp4");    // 视频文件路径
+                    mParams.setFrameWidth(CameraManager.PREVIEW_WIDTH);             // 分辨率
+                    mParams.setFrameHeight(CameraManager.PREVIEW_HEIGHT);
+                    mParams.setBitRateQuality(H264EncodeConsumer.Quality.MIDDLE);   // 视频编码码率
+                    mParams.setFrameRateDegree(H264EncodeConsumer.FrameRate._30fps);// 视频编码帧率
+                    mParams.setFrontCamera(mCamManager.getCameraDirection());       // 摄像头方向
+                    mParams.setPhoneHorizontal(false);  // 是否为横屏拍摄
+                    mParams.setAudioBitrate(AACEncodeConsumer.DEFAULT_BIT_RATE);        // 音频比特率
+                    mParams.setAudioSampleRate(AACEncodeConsumer.DEFAULT_SAMPLE_RATE);  // 音频采样率
+                    mParams.setAudioChannelConfig(AACEncodeConsumer.CHANNEL_IN_MONO);// 单声道
+                    mParams.setAudioChannelCount(AACEncodeConsumer.CHANNEL_COUNT_MONO);       // 单声道通道数量
+                    mParams.setAudioFormat(AACEncodeConsumer.ENCODING_PCM_16BIT);       // 采样精度为16位
+                    mParams.setAudioSouce(AACEncodeConsumer.SOURCE_MIC);                // 音频源为MIC
+                    mRecMp4.setEncodeParams(mParams);
+
+                    mRecMp4.startRecord();
                     mBtnRecord.setText("停止录像");
                 }else{
-                    mMuxerUtils.stopMuxerThread();
+                    mRecMp4.stopRecord();
                     mBtnRecord.setText("开始录像");
                 }
                 isRecording = !isRecording;

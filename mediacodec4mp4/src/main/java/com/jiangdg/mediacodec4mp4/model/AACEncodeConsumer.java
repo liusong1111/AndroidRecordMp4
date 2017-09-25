@@ -1,4 +1,4 @@
-package com.jiangdg.mediacodec4mp4.runnable;
+package com.jiangdg.mediacodec4mp4.model;
 
 import android.annotation.SuppressLint;
 import android.media.AudioFormat;
@@ -13,6 +13,7 @@ import android.os.Process;
 import android.util.Log;
 
 import com.jiangdg.mediacodec4mp4.RecordMp4;
+import com.jiangdg.mediacodec4mp4.bean.EncoderParams;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
@@ -22,59 +23,60 @@ import java.nio.ByteBuffer;
  * Created by jiangdongguo on 2017/5/6.
  */
 
-public class EncoderAudioRunnable implements Runnable {
-    private static final String TAG = "EncoderAudioRunnable";
+public class AACEncodeConsumer extends Thread {
+    private static final String TAG = "AACEncodeConsumer";
     private static final String MIME_TYPE = "audio/mp4a-latm";
-    private static final int TIMES_OUT = 1000;
-    private static final int BIT_RATE = 16000;
-    private static final int CHANNEL_COUNT = 1;
-    private static final int SMAPLE_RATE = 8000;
+    private static final int TIMES_OUT = 10000;
     private static final int ACC_PROFILE = MediaCodecInfo.CodecProfileLevel.AACObjectLC;
     private static final int BUFFER_SIZE = 1600;
     private static final int AUDIO_BUFFER_SIZE = 1024;
-    // 录音
-    private static final int channelConfig = AudioFormat.CHANNEL_IN_MONO;
-    private static final int audioFormat = AudioFormat.ENCODING_PCM_16BIT;
-    private static final int audioSouce = MediaRecorder.AudioSource.MIC;
+    /**默认比特率*/
+    public static final int DEFAULT_BIT_RATE = 16000;
+    /**默认采样率*/
+    public static final int DEFAULT_SAMPLE_RATE = 8000;
+
+    /**通道数为1*/
+    public static final int CHANNEL_COUNT_MONO = 1;
+    /**通道数为2*/
+    public static final int CHANNEL_COUNT_STEREO = 2;
+    /**单声道*/
+    public static final int CHANNEL_IN_MONO = AudioFormat.CHANNEL_IN_MONO;
+    /**立体声*/
+    public static final int CHANNEL_IN_STEREO = AudioFormat.CHANNEL_IN_STEREO;
+    /**16位采样精度*/
+    public static final int ENCODING_PCM_16BIT = AudioFormat.ENCODING_PCM_16BIT;
+    /**8位采样精度*/
+    public static final int ENCODING_PCM_8BIT = AudioFormat.ENCODING_PCM_8BIT;
+    /**音频源为MIC*/
+    public static final int SOURCE_MIC = MediaRecorder.AudioSource.MIC;
+    /**音频源为Default*/
+    public static final int SOURCE_DEFAULT = MediaRecorder.AudioSource.DEFAULT;
+    /**音频源为蓝牙*/
+    public static final int SOURCE_COMMUNICATION = MediaRecorder.AudioSource.VOICE_COMMUNICATION;
+
     private AudioRecord mAudioRecord;
     // 编码器
     private boolean isExit = false;
     private boolean isEncoderStarted = false;
-    private WeakReference<RecordMp4> muxerRunnableRf;
+    private WeakReference<MediaMuxerUtil> mMuxerRef;
+    private WeakReference<EncoderParams> mParamsRef;
     private MediaCodec mAudioEncoder;
-	private long prevPresentationTimes;
-	private MediaFormat mediaFormat;
+    private MediaFormat newFormat;
+    private long prevPresentationTimes = 0;
 
-    public EncoderAudioRunnable(WeakReference<RecordMp4> muxerRunnableRf){
-        this.muxerRunnableRf = muxerRunnableRf;
-        initMediaCodec();
+    public synchronized void setTmpuMuxer(MediaMuxerUtil mMuxer, EncoderParams mParams){
+        this.mMuxerRef =  new WeakReference<>(mMuxer);
+        this.mParamsRef = new WeakReference<>(mParams);
+
+        MediaMuxerUtil muxer = mMuxerRef.get();
+        if (muxer != null && newFormat != null) {
+            muxer.addTrack(newFormat, false);
+        }
     }
-
-    private void initMediaCodec() {
-        MediaCodecInfo mCodecInfo = selectSupportCodec(MIME_TYPE);
-        if(mCodecInfo == null){
-            Log.e(TAG,"编码器不支持"+MIME_TYPE+"类型");
-            return;
-        }
-        try{
-            mAudioEncoder = MediaCodec.createByCodecName(mCodecInfo.getName());
-        }catch(IOException e){
-            Log.e(TAG,"创建编码器失败"+e.getMessage());
-            e.printStackTrace();
-        }
-        // 告诉编码器输出数据的格式,如MIME类型、码率、采样率、通道数量等
-        mediaFormat = new MediaFormat();
-        mediaFormat.setString(MediaFormat.KEY_MIME,MIME_TYPE);
-        mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE,BIT_RATE);
-        mediaFormat.setInteger(MediaFormat.KEY_SAMPLE_RATE,SMAPLE_RATE);
-        mediaFormat.setInteger(MediaFormat.KEY_AAC_PROFILE,ACC_PROFILE);
-        mediaFormat.setInteger(MediaFormat.KEY_CHANNEL_COUNT,CHANNEL_COUNT);
-        mediaFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE,BUFFER_SIZE);
-	}
 
 	@Override
 	public void run() {
-		if (!isEncoderStarted) {
+		if (!false) {
 			startAudioRecord();
 			startCodec();
 		}
@@ -84,6 +86,8 @@ public class EncoderAudioRunnable implements Runnable {
 				int readBytes = mAudioRecord.read(audioBuf, 0,AUDIO_BUFFER_SIZE);
 				if (readBytes > 0) {
 					try {
+                        Log.i(TAG,"录音---->数据大小："+readBytes);
+
 						encoderBytes(audioBuf, readBytes);
 					} catch (IllegalStateException e) {
 						// 捕获因中断线程并停止混合dequeueOutputBuffer报的状态异常
@@ -130,7 +134,8 @@ public class EncoderAudioRunnable implements Runnable {
         do{
         	outputBufferIndex = mAudioEncoder.dequeueOutputBuffer(mBufferInfo,TIMES_OUT);
         	if(outputBufferIndex == MediaCodec. INFO_TRY_AGAIN_LATER){
-                Log.i(TAG,"获得编码器输出缓存区超时");
+                if(RecordMp4.DEBUG)
+                    Log.i(TAG,"获得编码器输出缓存区超时");
             }else if(outputBufferIndex == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED){
                 // 如果API小于21，APP需要重新绑定编码器的输入缓存区；
                 // 如果API大于21，则无需处理INFO_OUTPUT_BUFFERS_CHANGED
@@ -140,21 +145,28 @@ public class EncoderAudioRunnable implements Runnable {
             }else if(outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED){
                 // 编码器输出缓存区格式改变，通常在存储数据之前且只会改变一次
                 // 这里设置混合器视频轨道，如果音频已经添加则启动混合器（保证音视频同步）
-                MediaFormat newFormat = mAudioEncoder.getOutputFormat();
-                RecordMp4 mMuxerUtils = muxerRunnableRf.get();
-                if(mMuxerUtils != null){
-                    mMuxerUtils.setMediaFormat(RecordMp4.TRACK_AUDIO,newFormat);
+                if(RecordMp4.DEBUG)
+                    Log.i(TAG,"编码器输出缓存区格式改变，添加视频轨道到混合器");
+                synchronized (AACEncodeConsumer.this) {
+                    newFormat = mAudioEncoder.getOutputFormat();
+                    if(mMuxerRef != null){
+                        MediaMuxerUtil muxer = mMuxerRef.get();
+                        if (muxer != null) {
+                            muxer.addTrack(newFormat, false);
+                        }
+                    }
                 }
-                Log.i(TAG,"编码器输出缓存区格式改变，添加视频轨道到混合器");
             }else{
                 // 当flag属性置为BUFFER_FLAG_CODEC_CONFIG后，说明输出缓存区的数据已经被消费了
                 if((mBufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0){
-                    Log.i(TAG,"编码数据被消费，BufferInfo的size属性置0");
+                    if(RecordMp4.DEBUG)
+                        Log.i(TAG,"编码数据被消费，BufferInfo的size属性置0");
                     mBufferInfo.size = 0;
                 }
                 // 数据流结束标志，结束本次循环
                 if((mBufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0){
-                    Log.i(TAG,"数据流结束，退出循环");
+                    if(RecordMp4.DEBUG)
+                        Log.i(TAG,"数据流结束，退出循环");
                     break;
                 }
                 // 获取一个只读的输出缓存区inputBuffer ，它包含被编码好的数据
@@ -175,13 +187,13 @@ public class EncoderAudioRunnable implements Runnable {
                         outputBuffer.position(mBufferInfo.offset);
                         outputBuffer.limit(mBufferInfo.offset+mBufferInfo.size);
                     }
-                    // 对输出缓存区的H.264数据进行混合处理
-                    RecordMp4 mMuxerUtils = muxerRunnableRf.get();
-                    mBufferInfo.presentationTimeUs = getPTSUs();
-                    if(mMuxerUtils != null && mMuxerUtils.isMuxerStarted()){
-                        Log.d(TAG,"------混合音频数据-------");
-                        mMuxerUtils.addMuxerData(new RecordMp4.MuxerData(RecordMp4.TRACK_AUDIO,outputBuffer,mBufferInfo));
-                        prevPresentationTimes = mBufferInfo.presentationTimeUs;
+                    // 对输出缓存区的ACC进行混合处理
+                    if(mMuxerRef != null){
+                        MediaMuxerUtil muxer = mMuxerRef.get();
+                        if (muxer != null) {
+                            Log.i(TAG,"------编码混合音频数据-----"+mBufferInfo.size);
+                            muxer.pumpStream(outputBuffer, mBufferInfo, false);
+                        }
                     }
                 }
                 // 处理结束，释放输出缓存区资源
@@ -192,6 +204,26 @@ public class EncoderAudioRunnable implements Runnable {
 
     private void startCodec(){
     	isExit = false;
+        MediaCodecInfo mCodecInfo = selectSupportCodec(MIME_TYPE);
+        if(mCodecInfo == null || mParamsRef == null){
+            return;
+        }
+        try{
+            mAudioEncoder = MediaCodec.createByCodecName(mCodecInfo.getName());
+        }catch(IOException e){
+            if(RecordMp4.DEBUG)
+                Log.e(TAG,"创建编码器失败"+e.getMessage());
+            e.printStackTrace();
+        }
+        // 告诉编码器输出数据的格式,如MIME类型、码率、采样率、通道数量等
+        EncoderParams mParams = mParamsRef.get();
+        MediaFormat mediaFormat = new MediaFormat();
+        mediaFormat.setString(MediaFormat.KEY_MIME,MIME_TYPE);
+        mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE,mParams.getAudioBitrate());
+        mediaFormat.setInteger(MediaFormat.KEY_SAMPLE_RATE,mParams.getAudioSampleRate());
+        mediaFormat.setInteger(MediaFormat.KEY_AAC_PROFILE,ACC_PROFILE);
+        mediaFormat.setInteger(MediaFormat.KEY_CHANNEL_COUNT,mParams.getAudioChannelCount());
+        mediaFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE,BUFFER_SIZE);
     	if(mAudioEncoder != null){
             mAudioEncoder.configure(mediaFormat,null,null,MediaCodec.CONFIGURE_FLAG_ENCODE);
             mAudioEncoder.start();    
@@ -210,12 +242,15 @@ public class EncoderAudioRunnable implements Runnable {
     
     private void startAudioRecord(){
         // 计算AudioRecord所需输入缓存空间大小
-        int bufferSizeInBytes = AudioRecord.getMinBufferSize(SMAPLE_RATE,channelConfig,audioFormat);
+        EncoderParams mParams = mParamsRef.get();
+        int bufferSizeInBytes = AudioRecord.getMinBufferSize(mParams.getAudioSampleRate(),mParams.getAudioChannelConfig(),
+                mParams.getAudioFormat());
         if(bufferSizeInBytes < 1600){
             bufferSizeInBytes = 1600;
         }
         Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
-        mAudioRecord = new AudioRecord(audioSouce,SMAPLE_RATE,channelConfig,audioFormat,bufferSizeInBytes);
+        mAudioRecord = new AudioRecord(mParams.getAudioSouce(),mParams.getAudioSampleRate(),
+                mParams.getAudioChannelConfig(),mParams.getAudioFormat(),bufferSizeInBytes);
         // 开始录音
         mAudioRecord.startRecording();
     }
@@ -264,7 +299,7 @@ public class EncoderAudioRunnable implements Runnable {
         // API<=19
         return Build.VERSION.SDK_INT <= Build.VERSION_CODES.KITKAT;
     }
-    
+
     private long getPTSUs(){
     	long result = System.nanoTime()/1000;
     	if(result < prevPresentationTimes){
