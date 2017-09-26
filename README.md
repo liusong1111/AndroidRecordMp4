@@ -103,28 +103,25 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
    }  
    
 ```  
-  
-  （6） JPG图片抓拍  
-    
-   ```  
+
+(6) JPG图片抓拍
+```
       mRecMp4.capturePicture(picPath, new SaveYuvImageTask.OnSaveYuvResultListener() {
           @Override
           public void onSaveResult(boolean result, String savePath) {
                   Log.i("MainActivity","抓拍结果："+result+"保存路径："+savePath);
                }
-           });  
-	   
-   ```  
-   
+           }); 
+```
+
 最后，不要忘记添加权限哈  
-  
- ```  
+
+ 
+```
    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
   <uses-permission android:name="android.permission.CAMERA"/>
-  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>  
-  
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/> 
 ```  
-
 
 
 csdn博文地址：http://blog.csdn.net/andrexpert/article/details/72523408
