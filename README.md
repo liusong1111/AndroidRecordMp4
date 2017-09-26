@@ -55,8 +55,10 @@ dependencies {
 ```
  mRecMp4.startRecord();
  mRecMp4.stopRecord();
-```
-(4) Camera渲染 
+```  
+
+(4) Camera渲染  
+
 ```  
 public class MainActivity extends Activity implements SurfaceHolder.Callback{
     @Override
@@ -77,8 +79,10 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
             mRecMp4.stopCamera();
         }
     }
-```  
-(5) 摄像头控制
+```  
+
+(5) 摄像头控制  
+
 ```  
 // 对焦
  mRecMp4.enableFocus(new CameraManager.OnCameraFocusResult() {
@@ -99,7 +103,8 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
    }
 ```  
 
-（6） JPG图片抓拍
+（6） JPG图片抓拍  
+
 ```  
    mRecMp4.capturePicture(picPath, new SaveYuvImageTask.OnSaveYuvResultListener() {
           @Override
@@ -107,12 +112,15 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
                   Log.i("MainActivity","抓拍结果："+result+"保存路径："+savePath);
                }
            });
-```  
-最后，不要忘记添加权限哈  
+```  
+
+最后，不要忘记添加权限哈  
+
 ```  
   <uses-permission android:name="android.permission.RECORD_AUDIO"/>
   <uses-permission android:name="android.permission.CAMERA"/>
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
 ```  
+
 
 csdn博文地址：http://blog.csdn.net/andrexpert/article/details/72523408
