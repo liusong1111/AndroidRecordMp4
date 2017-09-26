@@ -1,13 +1,21 @@
 package com.jiangdg.mediacodec4mp4;
 
+import android.content.Context;
+import android.hardware.Camera;
 import android.os.Environment;
+import android.text.TextUtils;
 import android.util.Log;
+import android.view.SurfaceHolder;
+import android.widget.Toast;
 
 import com.jiangdg.mediacodec4mp4.bean.EncoderParams;
 import com.jiangdg.mediacodec4mp4.bean.YUVBean;
 import com.jiangdg.mediacodec4mp4.model.AACEncodeConsumer;
 import com.jiangdg.mediacodec4mp4.model.H264EncodeConsumer;
 import com.jiangdg.mediacodec4mp4.model.MediaMuxerUtil;
+import com.jiangdg.mediacodec4mp4.model.SaveYuvImageTask;
+import com.jiangdg.mediacodec4mp4.utils.CameraManager;
+import com.jiangdg.mediacodec4mp4.utils.SensorAccelerometer;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
@@ -28,8 +36,11 @@ public class RecordMp4 {
     private H264EncodeConsumer mH264Consumer;
     private MediaMuxerUtil mMuxer;
     private EncoderParams mParams;
-
+    private SensorAccelerometer mSensorAccelerometer;
+    private SaveYuvImageTask.OnSaveYuvResultListener listener;
+    private String picPath;
     private static RecordMp4 mRecMp4;
+    private CameraManager mCamManager;
 
     private RecordMp4(){}
 
@@ -38,6 +49,39 @@ public class RecordMp4 {
             mRecMp4 = new RecordMp4();
         }
         return mRecMp4;
+    }
+
+    private CameraManager.OnPreviewFrameResult mPreviewListener = new CameraManager.OnPreviewFrameResult() {
+        @Override
+        public void onPreviewResult(byte[] data, Camera camera) {
+            // 编码原始数据
+            if (mH264Consumer != null) {
+                mH264Consumer.addData(data);
+            }
+            // 图片抓拍
+            if(listener != null){
+                YUVBean bean = new YUVBean();
+                bean.setEnableSoftCodec(false);
+                bean.setDegree(0);
+                bean.setFrontCamera(isFrontCamera());
+                bean.setWidth(CameraManager.PREVIEW_WIDTH);
+                bean.setHeight(CameraManager.PREVIEW_HEIGHT);
+                bean.setPicPath(getPicPath());
+                bean.setYuvData(data);
+                new SaveYuvImageTask(bean, listener)
+                        .execute();
+                listener = null;
+            }
+            mCamManager.getCameraIntance().addCallbackBuffer(data);
+        }
+    };
+
+    public void init(Context context){
+        // 实例化摄像头管理类
+        mCamManager = CameraManager.getCamManagerInstance(context);
+        // 实例化加速传感器
+        mSensorAccelerometer = SensorAccelerometer.getSensorInstance();
+        mSensorAccelerometer.initSensor(context);
     }
 
     public void setEncodeParams(EncoderParams mParams) {
@@ -106,15 +150,83 @@ public class RecordMp4 {
         }
     }
 
+    public void startCamera(SurfaceHolder surfaceHolder){
+        if(mCamManager == null)
+            return;
+        mCamManager.setSurfaceHolder(surfaceHolder);
+        mCamManager.setOnPreviewResult(mPreviewListener);
+        mCamManager.createCamera();
+        mCamManager.startPreview();
+        startSensorAccelerometer();
+    }
 
-    public void feedYUV2Consumer(YUVBean rawYuv) {
-        if (mH264Consumer != null) {
-            mH264Consumer.addData(rawYuv.getYuvData());
+    public void stopCamera(){
+        if(mCamManager == null)
+            return;
+        mCamManager.stopPreivew();
+        mCamManager.destoryCamera();
+        stopSensorAccelerometer();
+    }
+
+    public void enableFocus(CameraManager.OnCameraFocusResult listener){
+        if(mCamManager != null){
+            mCamManager.cameraFocus(listener);
         }
     }
 
-//    public void capturePicture(YUVBean bean, SaveYuvImageTask.OnSaveYuvResultListener listener) {
-//        new SaveYuvImageTask(bean, listener)
-//                .execute();
-//    }
+    public void switchCamera(){
+        if(mCamManager != null){
+            mCamManager.switchCamera();
+        }
+    }
+
+    public void setPreviewSize(int width, int height){
+        if(mCamManager != null){
+            mCamManager.modifyPreviewSize(width,height);
+        }
+    }
+
+    public boolean isFrontCamera(){
+        return (mCamManager!=null &&
+                mCamManager.getCameraDirection()) ? true : false;
+    }
+
+    private void startSensorAccelerometer() {
+        // 启动加速传感器，注册结果事件监听器
+        if (mSensorAccelerometer != null) {
+            mSensorAccelerometer.startSensorAccelerometer(new SensorAccelerometer.OnSensorChangedResult() {
+                        @Override
+                        public void onStopped() {
+                            // 对焦成功，隐藏对焦图标
+                            mCamManager.cameraFocus(new CameraManager.OnCameraFocusResult() {
+                                @Override
+                                public void onFocusResult(boolean reslut) {
+
+                                }
+                            });
+                        }
+
+                        @Override
+                        public void onMoving(int x, int y, int z) {
+                        }
+                    });
+        }
+    }
+
+    private void stopSensorAccelerometer() {
+        // 释放加速传感器资源
+        if (mSensorAccelerometer == null) {
+            return;
+        }
+        mSensorAccelerometer.stopSensorAccelerometer();
+    }
+
+    public void capturePicture(String picPath, SaveYuvImageTask.OnSaveYuvResultListener listener) {
+        this.picPath = picPath;
+        this.listener = listener;
+    }
+
+    private String getPicPath(){
+        return picPath;
+    }
 }

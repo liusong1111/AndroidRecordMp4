@@ -266,7 +266,7 @@ public class CameraManager {
 		startPreview();
 	}
 
-    public void setPreviewSize(int width, int height) {
+    public void modifyPreviewSize(int width, int height) {
         PREVIEW_WIDTH = width;
         PREVIEW_HEIGHT = height;
     }

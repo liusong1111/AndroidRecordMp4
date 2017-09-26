@@ -6,6 +6,7 @@ package com.jiangdg.mediacodec4mp4.bean;
  */
 
 public class YUVBean {
+    private String picPath;
     // YUV数据
     private byte[] yuvData;
     // 时间戳
@@ -17,11 +18,12 @@ public class YUVBean {
     private boolean isEnableSoftCodec;
     private boolean isFrontCamera;
 
-    public YUVBean(){}
+    public String getPicPath() {
+        return picPath;
+    }
 
-    public YUVBean(byte[] yuvData, long timeStamp) {
-        this.yuvData = yuvData;
-        this.timeStamp = timeStamp;
+    public void setPicPath(String picPath) {
+        this.picPath = picPath;
     }
 
     public byte[] getYuvData() {

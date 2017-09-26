@@ -1,5 +1,6 @@
 package com.jiangdg.mediacodec4mp4.utils;
 
+import android.accessibilityservice.AccessibilityService;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.hardware.Sensor;
@@ -45,12 +46,15 @@ public class SensorAccelerometer implements SensorEventListener {
 		}
 		return sensorMeter;
 	}
+
+	public void initSensor(Context mContext){
+		//初始化传感器
+		mSensorManager = (SensorManager)mContext.getSystemService(Context.SENSOR_SERVICE);
+	}
 	
-	public  void startSensorAccelerometer(Context mContext,OnSensorChangedResult reslistener){
+	public  void startSensorAccelerometer(OnSensorChangedResult reslistener){
 		//注册运动事件结果监听器
 		this.reslistener = reslistener;
-		//初始化传感器
-		mSensorManager = (SensorManager)mContext.getSystemService(Context.SENSOR_SERVICE);		
 		//启动加速传感器
 		mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
 		mSensorManager.registerListener(this, mAccelerometer, SensorManager.SENSOR_DELAY_NORMAL);
