@@ -33,5 +33,15 @@
         android:text="切换摄像头"
         android:textSize="16sp"
         android:textStyle="bold" />
+    <Button
+        android:id="@+id/main_capture_picture"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/main_switch_camera_btn"
+        android:layout_marginLeft="20dp"
+        android:layout_marginRight="20dp"
+        android:text="抓拍"
+        android:textSize="16sp"
+        android:textStyle="bold" />
 
 </RelativeLayout>

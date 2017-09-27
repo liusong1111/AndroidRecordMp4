@@ -48,6 +48,18 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
         // 1. 初始化引擎
         mRecMp4 = RecordMp4.getRecordMp4Instance();
         mRecMp4.init(this);
+
+        mRecMp4.setOverlayType(RecordMp4.OverlayType.BOTH);
+        mRecMp4.setOverlayContent("我爱你，中国！");
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // 5. 释放引擎所占用的资源
+        if(mRecMp4 != null){
+            mRecMp4.release();
+        }
     }
 
     @OnClick({R.id.main_record_btn,R.id.main_switch_camera_btn,R.id.main_record_surface,R.id.main_capture_picture})
