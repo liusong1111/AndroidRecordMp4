@@ -16,10 +16,15 @@ import com.jiangdg.mediacodec4mp4.model.MediaMuxerUtil;
 import com.jiangdg.mediacodec4mp4.model.SaveYuvImageTask;
 import com.jiangdg.mediacodec4mp4.utils.CameraManager;
 import com.jiangdg.mediacodec4mp4.utils.SensorAccelerometer;
+import com.teligen.yuvosd.YuvUtils;
 
-import java.io.File;
+import org.easydarwin.sw.JNIUtil;
+import org.easydarwin.sw.TxtOverlay;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
+
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420PackedPlanar;
 
 /**
  * MpuMain业务逻辑实现类
@@ -41,6 +46,15 @@ public class RecordMp4 {
     private String picPath;
     private static RecordMp4 mRecMp4;
     private CameraManager mCamManager;
+    // 时间水印
+    private TxtOverlay overlay;
+    private String overlayContent;
+    private boolean enableOverlay;
+    private Enum<OverlayType> type;
+
+    public enum OverlayType{
+        TIME,WORDS,BOTH
+    }
 
     private RecordMp4(){}
 
@@ -51,12 +65,16 @@ public class RecordMp4 {
         return mRecMp4;
     }
 
+    // 预览数据处理
     private CameraManager.OnPreviewFrameResult mPreviewListener = new CameraManager.OnPreviewFrameResult() {
         @Override
         public void onPreviewResult(byte[] data, Camera camera) {
-            // 编码原始数据
-            if (mH264Consumer != null) {
-                mH264Consumer.addData(data);
+            Camera.Parameters parameters = camera.getParameters();
+            int width = 0;
+            int height = 0;
+            if(parameters != null){
+                width = parameters.getPreviewSize().width;
+                height = parameters.getPreviewSize().height;
             }
             // 图片抓拍
             if(listener != null){
@@ -64,13 +82,35 @@ public class RecordMp4 {
                 bean.setEnableSoftCodec(false);
                 bean.setDegree(0);
                 bean.setFrontCamera(isFrontCamera());
-                bean.setWidth(CameraManager.PREVIEW_WIDTH);
-                bean.setHeight(CameraManager.PREVIEW_HEIGHT);
+                bean.setWidth(width);
+                bean.setHeight(height);
                 bean.setPicPath(getPicPath());
                 bean.setYuvData(data);
                 new SaveYuvImageTask(bean, listener)
                         .execute();
                 listener = null;
+            }
+            // 旋转yuv
+            byte[] rotateYuv = rotateYuvData(data,width,height);
+
+            // 叠加水印
+            if(rotateYuv != null){
+                if(overlay != null){
+                    String txt = null;
+                    if(type == OverlayType.WORDS){
+                        txt = overlayContent;
+                    }else if(type == OverlayType.BOTH){
+                        txt = new SimpleDateFormat("yyyy-MM-dd EEEE HH:mm:ss").format(new Date()) +"  " +overlayContent;
+                    }else if(type == OverlayType.TIME){
+                        txt = new SimpleDateFormat("yyyy-MM-dd EEEE HH:mm:ss").format(new Date());
+                    }
+                    overlay.overlay(rotateYuv, txt);
+                }
+
+                // 编码原始数据
+                if (mH264Consumer != null) {
+                    mH264Consumer.addData(rotateYuv);
+                }
             }
             mCamManager.getCameraIntance().addCallbackBuffer(data);
         }
@@ -82,6 +122,55 @@ public class RecordMp4 {
         // 实例化加速传感器
         mSensorAccelerometer = SensorAccelerometer.getSensorInstance();
         mSensorAccelerometer.initSensor(context);
+        // 初始化水印引擎
+        // SIMYOU.ttf文件存在/data/data/程序Package Name/files
+        overlay = new TxtOverlay(context);
+
+        // 竖屏显示水印，适用于先旋转，再叠加水印
+        overlay.init(CameraManager.PREVIEW_HEIGHT, CameraManager.PREVIEW_WIDTH,
+                (context).getFileStreamPath("SIMYOU.ttf").getPath());
+//        // 横屏显示水印，适用于先叠加水印，再旋转
+//        overlay.init(CameraManager.PREVIEW_WIDTH, CameraManager.PREVIEW_HEIGHT,
+//                (context).getFileStreamPath("SIMYOU.ttf").getPath());
+    }
+
+    private byte[] rotateYuvData(byte[] data,int width,int height){
+        if(CameraManager.PREVIEW_WIDTH != width || CameraManager.PREVIEW_HEIGHT != height){
+            CameraManager.PREVIEW_WIDTH = width;
+            CameraManager.PREVIEW_HEIGHT = height;
+            return null;
+        }
+        byte[] rotateNv21 = new byte[width * height * 3 / 2];
+        boolean isFrontCamera = mCamManager!=null && mCamManager.getCameraDirection() ? true : false;
+        if (isFrontCamera) {
+            // 前置旋转270度(即竖屏采集，此时isPhoneHorizontal=false)
+            YuvUtils.Yuv420spRotateOfFront(data, rotateNv21, width, height, 270);
+        } else {
+            // 后置旋转90度(即竖直采集，此时isPhoneHorizontal=false)
+            YuvUtils.YUV420spRotateOfBack(data, rotateNv21, width, height, 90);
+            // 后置旋转270度(即倒立采集，此时isPhoneHorizontal=false)
+//			YuvUtils.YUV420spRotateOfBack(rawFrame, rotateNv21, mWidth, mHeight, 270);
+            // 后置旋转180度(即反向横屏采集，此时isPhoneHorizontal=true)
+//			YuvUtils.YUV420spRotateOfBack(rawFrame, rotateNv21, mWidth, mHeight, 180);
+            // 如果是正向横屏，则无需旋转YUV，此时isPhoneHorizontal=true
+        }
+        return  rotateNv21;
+    }
+
+    // 设置水印类型
+    public void setOverlayType(OverlayType type){
+        this.type = type;
+    }
+
+    // 设置水印内容
+    public void setOverlayContent(String overlayContent){
+        this.overlayContent = overlayContent;
+    }
+
+    public void release(){
+        // 释放水印引擎
+        if (overlay != null)
+            overlay.release();
     }
 
     public void setEncodeParams(EncoderParams mParams) {
@@ -190,6 +279,8 @@ public class RecordMp4 {
         return (mCamManager!=null &&
                 mCamManager.getCameraDirection()) ? true : false;
     }
+
+
 
     private void startSensorAccelerometer() {
         // 启动加速传感器，注册结果事件监听器

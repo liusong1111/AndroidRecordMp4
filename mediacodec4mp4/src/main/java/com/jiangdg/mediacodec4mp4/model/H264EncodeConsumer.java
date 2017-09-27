@@ -10,13 +10,14 @@ import android.util.Log;
 
 import com.jiangdg.mediacodec4mp4.RecordMp4;
 import com.jiangdg.mediacodec4mp4.bean.EncoderParams;
-import com.jiangdg.yuvosd.YuvUtils;
+import com.teligen.yuvosd.YuvUtils;
+
+import org.easydarwin.sw.JNIUtil;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420PackedPlanar;
 
 /**
  * 对YUV视频流进行编码
@@ -36,9 +37,7 @@ public class H264EncodeConsumer extends Thread {
     private int mColorFormat;
     private boolean isExit = false;
     private boolean isEncoderStart = false;
-    private boolean isAddTimeOsd = true;
 
-    private byte[] mFrameData;
     private boolean isAddKeyFrame = false;
     private WeakReference<EncoderParams> mParamsRef;
     private MediaFormat newFormat;
@@ -124,7 +123,6 @@ public class H264EncodeConsumer extends Thread {
         if(mParamsRef == null)
             return;
         EncoderParams mParams = mParamsRef.get();
-        mFrameData = new byte[mParams.getFrameWidth() * mParams.getFrameHeight() * 3 / 2];
         try {
             MediaCodecInfo mCodecInfo = selectSupportCodec(MIME_TYPE);
             if (mCodecInfo == null) {
@@ -175,7 +173,7 @@ public class H264EncodeConsumer extends Thread {
     long millisPerframe = 1000 / 20;
     long lastPush = 0;
 
-    @TargetApi(21)
+
     public void addData(byte[] yuvData) {
         if(! isEncoderStart || mParamsRef == null)
             return;
@@ -189,54 +187,47 @@ public class H264EncodeConsumer extends Thread {
                 if (time > 0)
                     Thread.sleep(time / 2);
             }
-            ByteBuffer[] inputBuffers = mVideoEncodec.getInputBuffers();
+
             //前置摄像头旋转270度，后置摄像头旋转90度
             EncoderParams mParams = mParamsRef.get();
             int mWidth = mParams.getFrameWidth();
             int mHeight = mParams.getFrameHeight();
-            byte[] rotateNv21 = new byte[mWidth * mHeight * 3 / 2];
-            if (mParams.isFrontCamera()) {
-                // 前置旋转270度(即竖屏采集，此时isPhoneHorizontal=false)
-                YuvUtils.Yuv420spRotateOfFront(yuvData, rotateNv21, mWidth, mHeight, 270);
-            } else {
-                // 后置旋转90度(即竖直采集，此时isPhoneHorizontal=false)
-                YuvUtils.YUV420spRotateOfBack(yuvData, rotateNv21, mWidth, mHeight, 90);
-                // 后置旋转270度(即倒立采集，此时isPhoneHorizontal=false)
-//			YuvUtils.YUV420spRotateOfBack(rawFrame, rotateNv21, mWidth, mHeight, 270);
-                // 后置旋转180度(即反向横屏采集，此时isPhoneHorizontal=true)
-//			YuvUtils.YUV420spRotateOfBack(rawFrame, rotateNv21, mWidth, mHeight, 180);
-                // 如果是正向横屏，则无需旋转YUV，此时isPhoneHorizontal=true
+            // 转换颜色格式
+            if(mColorFormat == COLOR_FormatYUV420PackedPlanar){
+                JNIUtil.nV21To420SP(yuvData, mWidth, mHeight);
+                // 将数据写入编码器
+                feedMediaCodecData(yuvData);
+            }else{
+                byte[] resultBytes = new byte[mWidth * mHeight *3 / 2];
+                YuvUtils.transferColorFormat(yuvData,mWidth,mHeight,resultBytes,mColorFormat);
+                // 将数据写入编码器
+                feedMediaCodecData(resultBytes);
             }
-            // 将NV21转换为编码器支持的颜色格式I420，添加时间水印
-            if (isAddTimeOsd) {
-                YuvUtils.AddYuvOsd(rotateNv21, mWidth, mHeight, mFrameData,
-                        new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()),
-                        mColorFormat, mParams.isPhoneHorizontal());
-            } else {
-                YuvUtils.transferColorFormat(rotateNv21, mWidth, mHeight, mFrameData, mColorFormat);
-            }
-            //返回编码器的一个输入缓存区句柄，-1表示当前没有可用的输入缓存区
-            int inputBufferIndex = mVideoEncodec.dequeueInputBuffer(TIMES_OUT);
-            if (inputBufferIndex >= 0) {
-                // 绑定一个被空的、可写的输入缓存区inputBuffer到客户端
-                ByteBuffer inputBuffer = null;
-                if (!isLollipop()) {
-                    inputBuffer = inputBuffers[inputBufferIndex];
-                } else {
-                    inputBuffer = mVideoEncodec.getInputBuffer(inputBufferIndex);
-                }
-                // 向输入缓存区写入有效原始数据，并提交到编码器中进行编码处理
-                inputBuffer.clear();
-                inputBuffer.put(mFrameData);
-                inputBuffer.clear();
-                mVideoEncodec.queueInputBuffer(inputBufferIndex, 0, mFrameData.length, System.nanoTime() / 1000, MediaCodec.BUFFER_FLAG_KEY_FRAME);
-
-                if (time > 0)
-                    Thread.sleep(time / 2);
-                lastPush = System.currentTimeMillis();
-            }
+            if (time > 0)
+                Thread.sleep(time / 2);
+            lastPush = System.currentTimeMillis();
         } catch (InterruptedException e) {
             e.printStackTrace();
+        }
+    }
+
+    @TargetApi(21)
+    private void feedMediaCodecData(byte[] data) {
+        ByteBuffer[] inputBuffers = mVideoEncodec.getInputBuffers();
+        int inputBufferIndex = mVideoEncodec.dequeueInputBuffer(TIMES_OUT);
+        if (inputBufferIndex >= 0) {
+            // 绑定一个被空的、可写的输入缓存区inputBuffer到客户端
+            ByteBuffer inputBuffer = null;
+            if (!isLollipop()) {
+                inputBuffer = inputBuffers[inputBufferIndex];
+            } else {
+                inputBuffer = mVideoEncodec.getInputBuffer(inputBufferIndex);
+            }
+            // 向输入缓存区写入有效原始数据，并提交到编码器中进行编码处理
+            inputBuffer.clear();
+            inputBuffer.put(data);
+            inputBuffer.clear();
+            mVideoEncodec.queueInputBuffer(inputBufferIndex, 0, data.length, System.nanoTime() / 1000, MediaCodec.BUFFER_FLAG_KEY_FRAME);
         }
     }
 
