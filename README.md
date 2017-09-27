@@ -17,7 +17,7 @@ allprojects {
 (2) 在module的gradle中添加
 ```
 dependencies {
-    compile 'com.github.jiangdongguo:AndroidRecordMp4:v1.0.0'
+    compile 'com.github.jiangdongguo:AndroidRecordMp4:v1.0.1'
 }
 ```
 
