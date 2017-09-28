@@ -17,7 +17,7 @@ allprojects {
 (2) 在module的gradle中添加
 ```
 dependencies {
-    compile 'com.github.jiangdongguo:AndroidRecordMp4:v1.0.1'
+    compile 'com.github.jiangdongguo:AndroidRecordMp4:v1.0.2'
 }
 ```
 
@@ -101,10 +101,14 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
             });
   // 切换摄像头
   mRecMp4.switchCamera();
+  
+  // 修改默认分辨率
+  mRecMp4.setPreviewSize(1280,720); 
+  
   // 切换分辨率
-  mRecMp4.setPreviewSize(1280,720); 
-   
-```  
+  mRecMp4.setPreviewSize(1280,720);
+  mRecMp4.restartCamera();
+```  
 
 (6) JPG图片抓拍
 ```
