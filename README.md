@@ -17,17 +17,23 @@ allprojects {
 (2) 在module的gradle中添加
 ```
 dependencies {
-    compile 'com.github.jiangdongguo:AndroidRecordMp4:v1.0.0'
+    compile 'com.github.jiangdongguo:AndroidRecordMp4:v1.0.1'
 }
 ```
 
 **2. 使用方法**  
 
-(1) 初始化引擎 
+(1) 初始化引擎/释放资源 
  
 ```
  RecordMp4 mRecMp4 = RecordMp4.getRecordMp4Instance();
  mRecMp4.init(this);  // 上下文
+ // 水印类型，包含三种：时间，文字，两者均包含
+ mRecMp4.setOverlayType(RecordMp4.OverlayType.BOTH);
+ mRecMp4.setOverlayContent("我爱你，中国！");
+ 
+ // 释放资源
+ mRecMp4.release();
 
 ```
 
@@ -48,7 +54,7 @@ dependencies {
   mParams.setAudioChannelCount(AACEncodeConsumer.CHANNEL_COUNT_MONO);       // 单声道通道数量
   mParams.setAudioFormat(AACEncodeConsumer.ENCODING_PCM_16BIT);       // 采样精度为16位
   mParams.setAudioSouce(AACEncodeConsumer.SOURCE_MIC);                // 音频源为MIC
-  mRecMp4.setEncodeParams(getEncodeParams());
+  mRecMp4.setEncodeParams(mParams);
 ```
 (3) 开始 /停止录制
  
@@ -93,14 +99,10 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
                     }
                }
             });
- // 切换摄像头
-  if(mRecMp4 != null){
-       mRecMp4.switchCamera();
-  }
+  // 切换摄像头
+  mRecMp4.switchCamera();
   // 切换分辨率
-   if(mRecMp4 != null){
-       mRecMp4.setPreviewSize(1280,720);
-   }  
+  mRecMp4.setPreviewSize(1280,720); 
    
 ```  
 
