@@ -1,8 +1,12 @@
 # AndroidRecordMp4
 **本地录制Mp4、抓拍jpg图片**
+- 支持叠加中英文、时间水印；
+- 支持前后置摄像头切换、分辨率切换;
+- 支持前后置摄像头视频拍摄、JPG格式图片抓取
+- 支持运动状态下相机自动对焦，同时支持手动对焦
+- 支持自适应拍摄方向
 
-
-**1. 添加依赖**  
+**1. 添加依赖**   
 
 (1) 在工程build.gradle中添加
 ```
@@ -31,9 +35,6 @@ dependencies {
  // 水印类型，包含三种：时间，文字，两者均包含
  mRecMp4.setOverlayType(RecordMp4.OverlayType.BOTH);
  mRecMp4.setOverlayContent("我爱你，中国！");
- 
- // 释放资源
- mRecMp4.release();
 
 ```
 
@@ -46,8 +47,6 @@ dependencies {
   mParams.setFrameHeight(CameraManager.PREVIEW_HEIGHT);
   mParams.setBitRateQuality(H264EncodeConsumer.Quality.MIDDLE);   // 视频编码码率
   mParams.setFrameRateDegree(H264EncodeConsumer.FrameRate._30fps);// 视频编码帧率
-  mParams.setFrontCamera((mRecMp4!=null&&mRecMp4.isFrontCamera()) ? true:false);       // 摄像头方向
-  mParams.setPhoneHorizontal(false);  // 是否为横屏拍摄
   mParams.setAudioBitrate(AACEncodeConsumer.DEFAULT_BIT_RATE);        // 音频比特率
   mParams.setAudioSampleRate(AACEncodeConsumer.DEFAULT_SAMPLE_RATE);  // 音频采样率
   mParams.setAudioChannelConfig(AACEncodeConsumer.CHANNEL_IN_MONO);// 单声道
