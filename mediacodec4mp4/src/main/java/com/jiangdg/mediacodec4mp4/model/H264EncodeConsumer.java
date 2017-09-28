@@ -10,7 +10,7 @@ import android.util.Log;
 
 import com.jiangdg.mediacodec4mp4.RecordMp4;
 import com.jiangdg.mediacodec4mp4.bean.EncoderParams;
-import com.teligen.yuvosd.YuvUtils;
+import com.jiangdg.yuvosd.YuvUtils;
 
 import org.easydarwin.sw.JNIUtil;
 
@@ -192,17 +192,17 @@ public class H264EncodeConsumer extends Thread {
             EncoderParams mParams = mParamsRef.get();
             int mWidth = mParams.getFrameWidth();
             int mHeight = mParams.getFrameHeight();
-            // 转换颜色格式
-            if(mColorFormat == COLOR_FormatYUV420PackedPlanar){
-                JNIUtil.nV21To420SP(yuvData, mWidth, mHeight);
-                // 将数据写入编码器
-                feedMediaCodecData(yuvData);
-            }else{
+//            // 转换颜色格式
+//            if(mColorFormat == COLOR_FormatYUV420PackedPlanar){
+//                JNIUtil.nV21To420SP(yuvData, mWidth, mHeight);
+//                // 将数据写入编码器
+//                feedMediaCodecData(yuvData);
+//            }else{
                 byte[] resultBytes = new byte[mWidth * mHeight *3 / 2];
                 YuvUtils.transferColorFormat(yuvData,mWidth,mHeight,resultBytes,mColorFormat);
                 // 将数据写入编码器
                 feedMediaCodecData(resultBytes);
-            }
+//            }
             if (time > 0)
                 Thread.sleep(time / 2);
             lastPush = System.currentTimeMillis();

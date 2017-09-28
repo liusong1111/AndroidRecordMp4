@@ -2,7 +2,6 @@
     package="com.jiangdg.mediacodec4mp4">
 
     <application
-        android:name=".application.Mp4Application"
         android:allowBackup="true" android:label="@string/app_name"
         android:supportsRtl="true">
 

@@ -1,11 +1,11 @@
-package com.teligen.yuvosd;
+package com.jiangdg.yuvosd;
 
-/**  YUV叠加时间水印native方法
+/** 时间水印native方法
  *
- * @author Created by jiangdongguo on 2017-5-31上午10:42:55
+ * Created by jiangdongguo on 2017/9/28.
  */
-public class YuvUtils {
 
+public class YuvUtils {
     /** 叠加时间水印
      * @param src NV21原始数据
      * @param width 分辨率的宽
@@ -15,8 +15,8 @@ public class YuvUtils {
      * @param colorFormat 编码器支持的颜色格式，主要有YUV420SemiPlannar和YUV420Plannar
      * @param isVerticalTake 横屏采集true，竖直采集为false，设置不正确时间水印会错乱
      */
-    public native static void AddYuvOsd(byte[] src,int width,int height ,byte[] dest,String date,int colorFormat,boolean isHorizatolTake);
-    
+    public native static void AddYuvOsd(byte[] src,int width,int height ,byte[] dest,String date,int colorFormat,boolean isVerticalTake);
+
     /**颜色格式转换(摄像头支持的格式->编码器支持的格式)
      * @param src nv21原始数据
      * @param width 分辨率的宽
@@ -44,15 +44,15 @@ public class YuvUtils {
      */
     public  static native void Yuv420spRotateOfFront(byte[] src,byte[] dest,int width, int height,int rotateDegree);
 
-	/** YV12转NV21(Camera采集的YUV数据主要为NV21或YV12)
-	 * @param src YV12原始数据
-
-	 * @param width 分辨率的宽
-	 * @param height 分辨率的高
-	 */
-	public static native void swYV12ToNV21(byte[] src,byte[] dest,int width, int height);
+    /** YV12转NV21(Camera采集的YUV数据主要为NV21或YV12)
+     * @param src YV12原始数据
+     * @param dest NV21数据
+     * @param width 分辨率的宽
+     * @param height 分辨率的高
+     */
+    public static native void swYV12ToNV21(byte[] src,byte[] dest,int width, int height);
 
     static{
-    	System.loadLibrary("YuvOsd");
+        System.loadLibrary("YuvOsd");
     }
 }

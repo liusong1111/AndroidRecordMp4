@@ -1,12 +1,11 @@
 package com.jiangdg.mediacodec4mp4;
 
 import android.content.Context;
+import android.content.res.AssetManager;
 import android.hardware.Camera;
 import android.os.Environment;
-import android.text.TextUtils;
 import android.util.Log;
 import android.view.SurfaceHolder;
-import android.widget.Toast;
 
 import com.jiangdg.mediacodec4mp4.bean.EncoderParams;
 import com.jiangdg.mediacodec4mp4.bean.YUVBean;
@@ -16,15 +15,16 @@ import com.jiangdg.mediacodec4mp4.model.MediaMuxerUtil;
 import com.jiangdg.mediacodec4mp4.model.SaveYuvImageTask;
 import com.jiangdg.mediacodec4mp4.utils.CameraManager;
 import com.jiangdg.mediacodec4mp4.utils.SensorAccelerometer;
-import com.teligen.yuvosd.YuvUtils;
+import com.jiangdg.yuvosd.YuvUtils;
 
-import org.easydarwin.sw.JNIUtil;
 import org.easydarwin.sw.TxtOverlay;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-
-import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420PackedPlanar;
 
 /**
  * MpuMain业务逻辑实现类
@@ -90,23 +90,23 @@ public class RecordMp4 {
                         .execute();
                 listener = null;
             }
+            // 叠加水印
+            if(overlay != null){
+                String txt = null;
+                if(type == OverlayType.WORDS){
+                    txt = overlayContent;
+                }else if(type == OverlayType.BOTH){
+                    txt = new SimpleDateFormat("yyyy-MM-dd EEEE HH:mm:ss").format(new Date()) +"  " +overlayContent;
+                }else if(type == OverlayType.TIME){
+                    txt = new SimpleDateFormat("yyyy-MM-dd EEEE HH:mm:ss").format(new Date());
+                }
+                overlay.overlay(data, txt);
+            }
+
             // 旋转yuv
             byte[] rotateYuv = rotateYuvData(data,width,height);
 
-            // 叠加水印
             if(rotateYuv != null){
-                if(overlay != null){
-                    String txt = null;
-                    if(type == OverlayType.WORDS){
-                        txt = overlayContent;
-                    }else if(type == OverlayType.BOTH){
-                        txt = new SimpleDateFormat("yyyy-MM-dd EEEE HH:mm:ss").format(new Date()) +"  " +overlayContent;
-                    }else if(type == OverlayType.TIME){
-                        txt = new SimpleDateFormat("yyyy-MM-dd EEEE HH:mm:ss").format(new Date());
-                    }
-                    overlay.overlay(rotateYuv, txt);
-                }
-
                 // 编码原始数据
                 if (mH264Consumer != null) {
                     mH264Consumer.addData(rotateYuv);
@@ -122,16 +122,19 @@ public class RecordMp4 {
         // 实例化加速传感器
         mSensorAccelerometer = SensorAccelerometer.getSensorInstance();
         mSensorAccelerometer.initSensor(context);
+        // 将assets目录下的SIMYOU.ttf文件
+        // 保存到data目录的files下
+        saveFrontFile(context);
+
         // 初始化水印引擎
         // SIMYOU.ttf文件存在/data/data/程序Package Name/files
         overlay = new TxtOverlay(context);
-
         // 竖屏显示水印，适用于先旋转，再叠加水印
-        overlay.init(CameraManager.PREVIEW_HEIGHT, CameraManager.PREVIEW_WIDTH,
-                (context).getFileStreamPath("SIMYOU.ttf").getPath());
-//        // 横屏显示水印，适用于先叠加水印，再旋转
-//        overlay.init(CameraManager.PREVIEW_WIDTH, CameraManager.PREVIEW_HEIGHT,
+//        overlay.init(CameraManager.PREVIEW_HEIGHT, CameraManager.PREVIEW_WIDTH,
 //                (context).getFileStreamPath("SIMYOU.ttf").getPath());
+//        // 横屏显示水印，适用于先叠加水印，再旋转
+        overlay.init(CameraManager.PREVIEW_WIDTH, CameraManager.PREVIEW_HEIGHT,
+                (context).getFileStreamPath("SIMYOU.ttf").getPath());
     }
 
     private byte[] rotateYuvData(byte[] data,int width,int height){
@@ -315,6 +318,27 @@ public class RecordMp4 {
     public void capturePicture(String picPath, SaveYuvImageTask.OnSaveYuvResultListener listener) {
         this.picPath = picPath;
         this.listener = listener;
+    }
+
+    private void saveFrontFile(Context context) {
+        File youyuan = context.getFileStreamPath("SIMYOU.ttf");
+        if (!youyuan.exists()){
+            AssetManager am = context.getAssets();
+            try {
+                InputStream is = am.open("zk/SIMYOU.ttf");
+                FileOutputStream os = context.openFileOutput("SIMYOU.ttf", Context.MODE_PRIVATE);
+                byte[] buffer = new byte[1024];
+                int len = 0;
+                while ((len = is.read(buffer)) != -1) {
+                    os.write(buffer, 0, len);
+                }
+                os.close();
+                is.close();
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     private String getPicPath(){
