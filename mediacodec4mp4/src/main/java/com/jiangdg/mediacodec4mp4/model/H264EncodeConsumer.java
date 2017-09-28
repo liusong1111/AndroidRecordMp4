@@ -138,12 +138,12 @@ public class H264EncodeConsumer extends Thread {
             e.printStackTrace();
         }
         MediaFormat mFormat;
-        if (mParams.isPhoneHorizontal()) {
-            // 手机水平拍摄
-            mFormat = MediaFormat.createVideoFormat(MIME_TYPE, mParams.getFrameWidth(), mParams.getFrameHeight());
-        } else {
+        if(mParams.isVertical()){
             // 手机垂直拍摄
             mFormat = MediaFormat.createVideoFormat(MIME_TYPE, mParams.getFrameHeight(), mParams.getFrameWidth());
+        } else {
+            // 手机水平拍摄
+            mFormat = MediaFormat.createVideoFormat(MIME_TYPE, mParams.getFrameWidth(), mParams.getFrameHeight());
         }
         mFormat.setInteger(MediaFormat.KEY_BIT_RATE, getBitrate());
         mFormat.setInteger(MediaFormat.KEY_FRAME_RATE, getFrameRate());
@@ -192,7 +192,7 @@ public class H264EncodeConsumer extends Thread {
             EncoderParams mParams = mParamsRef.get();
             int mWidth = mParams.getFrameWidth();
             int mHeight = mParams.getFrameHeight();
-//            // 转换颜色格式
+            // 转换颜色格式
 //            if(mColorFormat == COLOR_FormatYUV420PackedPlanar){
 //                JNIUtil.nV21To420SP(yuvData, mWidth, mHeight);
 //                // 将数据写入编码器
@@ -203,6 +203,9 @@ public class H264EncodeConsumer extends Thread {
                 // 将数据写入编码器
                 feedMediaCodecData(resultBytes);
 //            }
+//            JNIUtil.nV21To420SP(yuvData, mWidth, mHeight);
+//            feedMediaCodecData(yuvData);
+
             if (time > 0)
                 Thread.sleep(time / 2);
             lastPush = System.currentTimeMillis();

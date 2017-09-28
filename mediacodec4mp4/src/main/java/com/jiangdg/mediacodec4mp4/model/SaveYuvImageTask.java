@@ -43,9 +43,12 @@ public class SaveYuvImageTask extends AsyncTask<Void, Void, Void> {
 				|| yuvBean.getHeight() == 0 || yuvBean.getYuvData() == null) {
 			return null;
 		}
-		byte[] mData = yuvBean.getYuvData();
 		int width = yuvBean.getWidth();
 		int height = yuvBean.getHeight();
+		// 复制一份，防止再操作原始数据时出现异常
+		byte[] mData = new byte[width * height * 3 /2];
+		System.arraycopy(yuvBean.getYuvData(),0,mData,0,yuvBean.getYuvData().length);
+
 		boolean isEnableSoftCodec = yuvBean.isEnableSoftCodec();
 		if(isEnableSoftCodec){
 			byte[] mFrameData = new byte[width*height*3/2];

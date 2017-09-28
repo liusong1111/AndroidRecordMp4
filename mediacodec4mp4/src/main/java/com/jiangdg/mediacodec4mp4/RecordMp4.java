@@ -1,10 +1,13 @@
 package com.jiangdg.mediacodec4mp4;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.res.AssetManager;
 import android.hardware.Camera;
 import android.os.Environment;
+import android.text.TextUtils;
 import android.util.Log;
+import android.view.Surface;
 import android.view.SurfaceHolder;
 
 import com.jiangdg.mediacodec4mp4.bean.EncoderParams;
@@ -17,6 +20,7 @@ import com.jiangdg.mediacodec4mp4.utils.CameraManager;
 import com.jiangdg.mediacodec4mp4.utils.SensorAccelerometer;
 import com.jiangdg.yuvosd.YuvUtils;
 
+import org.easydarwin.sw.JNIUtil;
 import org.easydarwin.sw.TxtOverlay;
 
 import java.io.File;
@@ -49,8 +53,10 @@ public class RecordMp4 {
     // 时间水印
     private TxtOverlay overlay;
     private String overlayContent;
-    private boolean enableOverlay;
+    private String frontPath;
     private Enum<OverlayType> type;
+    private int mDegree = 0;
+
 
     public enum OverlayType{
         TIME,WORDS,BOTH
@@ -90,7 +96,10 @@ public class RecordMp4 {
                         .execute();
                 listener = null;
             }
-            // 叠加水印
+            // 处理1：旋转YUV
+            rotateYuv2(data,camera,width,height);
+
+            // 处理2：yuv叠加水印
             if(overlay != null){
                 String txt = null;
                 if(type == OverlayType.WORDS){
@@ -100,17 +109,13 @@ public class RecordMp4 {
                 }else if(type == OverlayType.TIME){
                     txt = new SimpleDateFormat("yyyy-MM-dd EEEE HH:mm:ss").format(new Date());
                 }
-                overlay.overlay(data, txt);
-            }
-
-            // 旋转yuv
-            byte[] rotateYuv = rotateYuvData(data,width,height);
-
-            if(rotateYuv != null){
-                // 编码原始数据
-                if (mH264Consumer != null) {
-                    mH264Consumer.addData(rotateYuv);
+                if(! TextUtils.isEmpty(txt)){
+                    overlay.overlay(data, txt);
                 }
+            }
+            // 处理3：yuv转换颜色格式，再编码
+            if (mH264Consumer != null) {
+                mH264Consumer.addData(data);
             }
             mCamManager.getCameraIntance().addCallbackBuffer(data);
         }
@@ -126,18 +131,17 @@ public class RecordMp4 {
         // 保存到data目录的files下
         saveFrontFile(context);
 
+        getDgree(context);
+
         // 初始化水印引擎
         // SIMYOU.ttf文件存在/data/data/程序Package Name/files
         overlay = new TxtOverlay(context);
-        // 竖屏显示水印，适用于先旋转，再叠加水印
-//        overlay.init(CameraManager.PREVIEW_HEIGHT, CameraManager.PREVIEW_WIDTH,
-//                (context).getFileStreamPath("SIMYOU.ttf").getPath());
-//        // 横屏显示水印，适用于先叠加水印，再旋转
-        overlay.init(CameraManager.PREVIEW_WIDTH, CameraManager.PREVIEW_HEIGHT,
-                (context).getFileStreamPath("SIMYOU.ttf").getPath());
+        frontPath = (context).getFileStreamPath("SIMYOU.ttf").getPath();
     }
 
-    private byte[] rotateYuvData(byte[] data,int width,int height){
+
+
+    private byte[] rotateYuv1(byte[] data,int width,int height){
         if(CameraManager.PREVIEW_WIDTH != width || CameraManager.PREVIEW_HEIGHT != height){
             CameraManager.PREVIEW_WIDTH = width;
             CameraManager.PREVIEW_HEIGHT = height;
@@ -149,15 +153,61 @@ public class RecordMp4 {
             // 前置旋转270度(即竖屏采集，此时isPhoneHorizontal=false)
             YuvUtils.Yuv420spRotateOfFront(data, rotateNv21, width, height, 270);
         } else {
+            // 如果是正向横屏，则无需旋转YUV，此时isPhoneHorizontal=true
+//            if(mParams!= null && mParams.isPhoneHorizontal()){
+//                return data;
+//            }
             // 后置旋转90度(即竖直采集，此时isPhoneHorizontal=false)
             YuvUtils.YUV420spRotateOfBack(data, rotateNv21, width, height, 90);
             // 后置旋转270度(即倒立采集，此时isPhoneHorizontal=false)
 //			YuvUtils.YUV420spRotateOfBack(rawFrame, rotateNv21, mWidth, mHeight, 270);
             // 后置旋转180度(即反向横屏采集，此时isPhoneHorizontal=true)
 //			YuvUtils.YUV420spRotateOfBack(rawFrame, rotateNv21, mWidth, mHeight, 180);
-            // 如果是正向横屏，则无需旋转YUV，此时isPhoneHorizontal=true
+
         }
         return  rotateNv21;
+    }
+
+    private void rotateYuv2(byte[] data, Camera camera,int width,int height){
+        if(CameraManager.PREVIEW_WIDTH != width || CameraManager.PREVIEW_HEIGHT != height){
+            CameraManager.PREVIEW_WIDTH = width;
+            CameraManager.PREVIEW_HEIGHT = height;
+            return;
+        }
+        Camera.CameraInfo camInfo = new Camera.CameraInfo();
+        if(isFrontCamera()){
+            Camera.getCameraInfo(Camera.CameraInfo.CAMERA_FACING_FRONT, camInfo);
+        }else{
+            Camera.getCameraInfo(Camera.CameraInfo.CAMERA_FACING_BACK, camInfo);
+        }
+        int cameraRotationOffset = camInfo.orientation;
+        if (cameraRotationOffset % 180 != 0) {
+                yuvRotate(data, 1, width, height, cameraRotationOffset);
+        }
+    }
+
+    /**
+     * 旋转YUV格式数据
+     *
+     * src    YUV数据
+     * format 0，420P；1，420SP
+     * width  宽度
+     * height 高度
+     * degree 旋转度数
+     */
+    private static void yuvRotate(byte[] src, int format, int width, int height, int degree) {
+        int offset = 0;
+        if (format == 0) {
+            JNIUtil.rotateMatrix(src, offset, width, height, degree);
+            offset += (width * height);
+            JNIUtil.rotateMatrix(src, offset, width / 2, height / 2, degree);
+            offset += width * height / 4;
+            JNIUtil.rotateMatrix(src, offset, width / 2, height / 2, degree);
+        } else if (format == 1) {
+            JNIUtil.rotateMatrix(src, offset, width, height, degree);
+            offset += width * height;
+            JNIUtil.rotateShortMatrix(src, offset, width / 2, height / 2, degree);
+        }
     }
 
     // 设置水印类型
@@ -170,11 +220,6 @@ public class RecordMp4 {
         this.overlayContent = overlayContent;
     }
 
-    public void release(){
-        // 释放水印引擎
-        if (overlay != null)
-            overlay.release();
-    }
 
     public void setEncodeParams(EncoderParams mParams) {
         this.mParams = mParams;
@@ -183,6 +228,30 @@ public class RecordMp4 {
     public void startRecord(){
         if(mParams == null)
             throw new IllegalStateException("EncoderParams can not be null,need call setEncodeParams method!");
+        // 判断手机方向
+        boolean rotate = false;
+        if(mDegree == 0){
+            Camera.CameraInfo camInfo = new Camera.CameraInfo();
+            Camera.getCameraInfo(isFrontCamera()? Camera.CameraInfo.CAMERA_FACING_FRONT
+                    : Camera.CameraInfo.CAMERA_FACING_BACK, camInfo);
+            int cameraRotationOffset = camInfo.orientation;
+            if (cameraRotationOffset == 90) {
+                rotate = true;
+            } else if (cameraRotationOffset == 270) {
+                rotate = true;
+            }
+        }
+        if(! rotate){
+            // 垂直水印
+            overlay.init(mParams.getFrameWidth(), mParams.getFrameHeight(),frontPath);
+        }else{
+            // 水平
+            overlay.init(mParams.getFrameHeight(), mParams.getFrameWidth(), frontPath);
+        }
+        mParams.setVertical(rotate);
+        Log.i(TAG,"-------------------->rotate = "+rotate);
+
+        // 创建音视频编码线程
         mH264Consumer = new H264EncodeConsumer();
         mAacConsumer = new AACEncodeConsumer();
         //new File(mParams.getVideoPath(), new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss").format(new Date())).toString()
@@ -199,6 +268,9 @@ public class RecordMp4 {
     }
 
     public void stopRecord(){
+        // 释放水印引擎
+        if (overlay != null)
+            overlay.release();
         // 停止混合器
         if (mMuxer != null) {
             mMuxer.release();
@@ -251,6 +323,12 @@ public class RecordMp4 {
         mCamManager.startPreview();
         startSensorAccelerometer();
     }
+
+    public void restartCamera(){
+        mCamManager.createCamera();
+        mCamManager.startPreview();
+    }
+
 
     public void stopCamera(){
         if(mCamManager == null)
@@ -343,5 +421,23 @@ public class RecordMp4 {
 
     private String getPicPath(){
         return picPath;
+    }
+
+    private void getDgree(Context context) {
+        int rotation = ((Activity)context).getWindowManager().getDefaultDisplay().getRotation();
+        switch (rotation) {
+            case Surface.ROTATION_0:
+                mDegree = 0;
+                break; // Natural orientation
+            case Surface.ROTATION_90:
+                mDegree = 90;
+                break; // Landscape left
+            case Surface.ROTATION_180:
+                mDegree = 180;
+                break;// Upside down
+            case Surface.ROTATION_270:
+                mDegree = 270;
+                break;// Landscape right
+        }
     }
 }

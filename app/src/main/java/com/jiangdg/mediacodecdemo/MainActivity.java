@@ -48,18 +48,12 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
         // 1. 初始化引擎
         mRecMp4 = RecordMp4.getRecordMp4Instance();
         mRecMp4.init(this);
-
-        mRecMp4.setOverlayType(RecordMp4.OverlayType.BOTH);
-        mRecMp4.setOverlayContent("我爱你，中国！");
+        mRecMp4.setOverlayType(RecordMp4.OverlayType.TIME);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // 5. 释放引擎所占用的资源
-        if(mRecMp4 != null){
-            mRecMp4.release();
-        }
     }
 
     @OnClick({R.id.main_record_btn,R.id.main_switch_camera_btn,R.id.main_record_surface,R.id.main_capture_picture})
@@ -127,8 +121,8 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
         mParams.setFrameHeight(CameraManager.PREVIEW_HEIGHT);
         mParams.setBitRateQuality(H264EncodeConsumer.Quality.MIDDLE);   // 视频编码码率
         mParams.setFrameRateDegree(H264EncodeConsumer.FrameRate._30fps);// 视频编码帧率
-        mParams.setFrontCamera((mRecMp4!=null&&mRecMp4.isFrontCamera()) ? true:false);       // 摄像头方向
-        mParams.setPhoneHorizontal(false);  // 是否为横屏拍摄
+//        mParams.setFrontCamera((mRecMp4!=null && mRecMp4.isFrontCamera()) ? true:false);       // 摄像头方向
+//        mParams.setPhoneHorizontal(false);  // 是否为横屏拍摄
         mParams.setAudioBitrate(AACEncodeConsumer.DEFAULT_BIT_RATE);        // 音频比特率
         mParams.setAudioSampleRate(AACEncodeConsumer.DEFAULT_SAMPLE_RATE);  // 音频采样率
         mParams.setAudioChannelConfig(AACEncodeConsumer.CHANNEL_IN_MONO);// 单声道
@@ -141,6 +135,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
     @Override
     public void surfaceCreated(SurfaceHolder surfaceHolder) {
         if(mRecMp4 != null){
+            // 修改默认分辨率
             mRecMp4.startCamera(surfaceHolder);
         }
     }
