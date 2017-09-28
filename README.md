@@ -17,7 +17,7 @@ allprojects {
 (2) 在module的gradle中添加
 ```
 dependencies {
-    compile 'com.github.jiangdongguo:AndroidRecordMp4:v1.0.1'
+    compile 'com.github.jiangdongguo:AndroidRecordMp4:v1.0.2'
 }
 ```
 
@@ -101,10 +101,14 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
             });
   // 切换摄像头
   mRecMp4.switchCamera();
+  
+  // 修改默认分辨率
+  mRecMp4.setPreviewSize(1280,720); 
+  
   // 切换分辨率
-  mRecMp4.setPreviewSize(1280,720); 
-   
-```  
+  mRecMp4.setPreviewSize(1280,720);
+  mRecMp4.restartCamera();
+```  
 
 (6) JPG图片抓拍
 ```
@@ -114,16 +118,13 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
                   Log.i("MainActivity","抓拍结果："+result+"保存路径："+savePath);
                }
            }); 
-```
-
-最后，不要忘记添加权限哈  
-
- 
-```
-   <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-  <uses-permission android:name="android.permission.CAMERA"/>
-  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/> 
 ```  
+
+最后，不要忘记添加权限哈
+ 
+<uses-permission android:name="android.permission.RECORD_AUDIO"/>
+<uses-permission android:name="android.permission.CAMERA"/>
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/> 
 
 
 csdn博文地址：http://blog.csdn.net/andrexpert/article/details/72523408
