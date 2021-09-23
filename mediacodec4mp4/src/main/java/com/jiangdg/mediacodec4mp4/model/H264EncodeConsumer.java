@@ -143,7 +143,9 @@ public class H264EncodeConsumer extends Thread {
             mFormat = MediaFormat.createVideoFormat(MIME_TYPE, mParams.getFrameHeight(), mParams.getFrameWidth());
         } else {
             // 手机水平拍摄
-            mFormat = MediaFormat.createVideoFormat(MIME_TYPE, mParams.getFrameWidth(), mParams.getFrameHeight());
+            // TODO
+            mFormat = MediaFormat.createVideoFormat(MIME_TYPE, mParams.getFrameHeight(), mParams.getFrameWidth());
+//            mFormat = MediaFormat.createVideoFormat(MIME_TYPE, mParams.getFrameWidth(), mParams.getFrameHeight());
         }
         mFormat.setInteger(MediaFormat.KEY_BIT_RATE, getBitrate());
         mFormat.setInteger(MediaFormat.KEY_FRAME_RATE, getFrameRate());

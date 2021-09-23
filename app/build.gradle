@@ -1,15 +1,15 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 25
-    buildToolsVersion "23.0.2"
+    compileSdkVersion 29
+    buildToolsVersion "30.0.2"
     defaultConfig {
         applicationId "com.jiangdg.mediacodecdemo"
         minSdkVersion 18
-        targetSdkVersion 22
+        targetSdkVersion 29
         versionCode 1
         versionName "1.0"
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     buildTypes {
         release {
@@ -19,14 +19,20 @@ android {
     }
 }
 
+
+allprojects {
+    tasks.withType(JavaCompile) {
+        options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+    }
+}
+
 dependencies {
-    compile fileTree(include: ['*.jar'], dir: 'libs')
-    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    androidTestImplementation('androidx.test.espresso:espresso-core:3.1.0', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
-    compile 'com.android.support:appcompat-v7:25.2.0'
-    testCompile 'junit:junit:4.12'
-    compile project(':mediacodec4mp4')
-    compile 'com.jakewharton:butterknife:8.7.0'
-    compile 'com.jakewharton:butterknife-compiler:8.7.0'
+    testImplementation 'junit:junit:4.12'
+    implementation project(':mediacodec4mp4')
+    implementation group: 'com.amazonaws', name: 'aws-android-sdk-s3', version: '2.22.5'
+    implementation group: 'com.amazonaws', name: 'aws-android-sdk-mobile-client', version: '2.22.5'
 }

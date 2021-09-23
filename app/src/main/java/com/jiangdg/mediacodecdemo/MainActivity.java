@@ -1,7 +1,6 @@
 package com.jiangdg.mediacodecdemo;
 
 import android.app.Activity;
-import android.hardware.Camera;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.SurfaceHolder;
@@ -20,35 +19,91 @@ import com.jiangdg.mediacodec4mp4.bean.EncoderParams;
 
 import java.io.File;
 
-import butterknife.BindView;
-import butterknife.ButterKnife;
-import butterknife.OnClick;
 
-public class MainActivity extends Activity implements SurfaceHolder.Callback{
-    @BindView(R.id.main_record_btn)
+public class MainActivity extends Activity implements SurfaceHolder.Callback {
+    private static final String TAG = "MainActivity";
     public Button mBtnRecord;
-    @BindView(R.id.main_switch_camera_btn)
     public Button mBtnSwitchCam;
-    @BindView(R.id.main_record_surface)
     public SurfaceView mSurfaceView;
-    @BindView(R.id.main_capture_picture)
     public Button mBtnCaputrePic;
 
+    private LectureRecorder recorder;
     private boolean isRecording;
-    private RecordMp4 mRecMp4;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        // 绑定View
-        ButterKnife.bind(this);
-        mSurfaceView.getHolder().addCallback(this);
 
-        // 1. 初始化引擎
-        mRecMp4 = RecordMp4.getRecordMp4Instance();
-        mRecMp4.init(this);
-        mRecMp4.setOverlayType(RecordMp4.OverlayType.TIME);
+        mBtnRecord = (Button) findViewById(R.id.main_record_btn);
+        mBtnSwitchCam = (Button) findViewById(R.id.main_switch_camera_btn);
+        mSurfaceView = (SurfaceView) findViewById(R.id.main_record_surface);
+        mSurfaceView.getHolder().addCallback(this);
+        mBtnCaputrePic = (Button) findViewById(R.id.main_capture_picture);
+
+        mBtnRecord.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (!isRecording) {
+                    // 开始录制
+                    recorder.start();
+                    mBtnRecord.setText("停止录像");
+                } else {
+                    // 停止录制
+                    recorder.stop();
+                    mBtnRecord.setText("开始录像");
+                }
+                isRecording = !isRecording;
+            }
+        });
+
+        mBtnSwitchCam.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (isRecording) {
+                    showMsg("正在录像，无法切换");
+                } else {
+                    if (recorder.getRecordMp4() != null) {
+                        recorder.getRecordMp4().switchCamera();
+                    }
+                }
+            }
+        });
+
+//        mSurfaceView.setOnClickListener(new OnClickListener() {
+//            @Override
+//            public void onClick(View view) {
+//                if (recorder.getRecordMp4() != null) {
+//                    recorder.getRecordMp4().enableFocus(new CameraManager.OnCameraFocusResult() {
+//                        @Override
+//                        public void onFocusResult(boolean result) {
+//                            if (result) {
+//                                showMsg("对焦成功");
+//                            }
+//                        }
+//                    });
+//                    recorder.getRecordMp4().startRecord();
+//                }
+//            }
+//        });
+
+        mBtnCaputrePic.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                String picPath = RecordMp4.ROOT_PATH + File.separator + System.currentTimeMillis() + ".jpg";
+                if (recorder.getRecordMp4() != null)
+                    recorder.getRecordMp4().capturePicture(picPath, new SaveYuvImageTask.OnSaveYuvResultListener() {
+                        @Override
+                        public void onSaveResult(boolean result, String savePath) {
+                            Log.i("MainActivity", "抓拍结果：" + result + "保存路径：" + savePath);
+                        }
+                    });
+            }
+        });
+
+        EncoderParams encoderParams = this.getEncodeParams();
+        this.recorder = new LectureRecorder(this, "000000", "lecture1", "person1", encoderParams, "minioadmin", "minioadmin", "http://172.16.1.109:9000");
     }
 
     @Override
@@ -56,67 +111,9 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
         super.onDestroy();
     }
 
-    @OnClick({R.id.main_record_btn,R.id.main_switch_camera_btn,R.id.main_record_surface,R.id.main_capture_picture})
-    public void onViewClick(View v){
-        int vId = v.getId();
-        switch (vId){
-            // 录制
-            case R.id.main_record_btn:
-                if(!isRecording){
-                    // 2. 配置参数
-                    mRecMp4.setEncodeParams(getEncodeParams());
-                    // 3. 开始录制
-                    mRecMp4.startRecord();
-                    mBtnRecord.setText("停止录像");
-                }else{
-                    // 4. 停止录制
-                    mRecMp4.stopRecord();
-                    mBtnRecord.setText("开始录像");
-                }
-                isRecording = !isRecording;
-                break;
-            // 切换摄像头
-            case R.id.main_switch_camera_btn:
-                if(isRecording){
-                    showMsg("正在录像，无法切换");
-                }else {
-                    if(mRecMp4 != null){
-                        mRecMp4.switchCamera();
-                    }
-                }
-                break;
-            // 对焦
-            case R.id.main_record_surface:
-                if(mRecMp4 != null){
-                    mRecMp4.enableFocus(new CameraManager.OnCameraFocusResult() {
-                        @Override
-                        public void onFocusResult(boolean result) {
-                            if(result){
-                                showMsg("对焦成功");
-                            }
-                        }
-                    });
-                }
-                break;
-            // 抓拍
-            case R.id.main_capture_picture:
-                String picPath = RecordMp4.ROOT_PATH+File.separator+System.currentTimeMillis()+".jpg";
-                if(mRecMp4 != null)
-                    mRecMp4.capturePicture(picPath, new SaveYuvImageTask.OnSaveYuvResultListener() {
-                        @Override
-                        public void onSaveResult(boolean result, String savePath) {
-                            Log.i("MainActivity","抓拍结果："+result+"保存路径："+savePath);
-                        }
-                    });
-                break;
-        }
-    }
-
-
-
     private EncoderParams getEncodeParams() {
         EncoderParams mParams = new EncoderParams();
-        mParams.setVideoPath(RecordMp4.ROOT_PATH+ File.separator + System.currentTimeMillis() + ".mp4");    // 视频文件路径
+//        mParams.setVideoPath(RecordMp4.ROOT_PATH + File.separator + System.currentTimeMillis() + ".mp4");    // 视频文件路径
         mParams.setFrameWidth(CameraManager.PREVIEW_WIDTH);             // 分辨率
         mParams.setFrameHeight(CameraManager.PREVIEW_HEIGHT);
         mParams.setBitRateQuality(H264EncodeConsumer.Quality.MIDDLE);   // 视频编码码率
@@ -134,9 +131,10 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
 
     @Override
     public void surfaceCreated(SurfaceHolder surfaceHolder) {
-        if(mRecMp4 != null){
+//        Log.i(TAG, "create mp4=" + recorder.getRecordMp4());
+        if (recorder.getRecordMp4() != null) {
             // 修改默认分辨率
-            mRecMp4.startCamera(surfaceHolder);
+            recorder.getRecordMp4().startCamera(surfaceHolder);
         }
     }
 
@@ -147,14 +145,14 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback{
 
     @Override
     public void surfaceDestroyed(SurfaceHolder surfaceHolder) {
-        if(mRecMp4 != null){
-            mRecMp4.stopCamera();
+//        Log.i(TAG, "destroyed mp4=" + recorder.getRecordMp4());
+        if (recorder.getRecordMp4() != null) {
+            recorder.getRecordMp4().stopCamera();
         }
     }
-    
 
 
-    private void showMsg(String msg){
-        Toast.makeText(MainActivity.this, msg,Toast.LENGTH_SHORT).show();
+    private void showMsg(String msg) {
+        Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show();
     }
 }

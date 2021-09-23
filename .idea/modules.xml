@@ -2,9 +2,9 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/MediaCodecDemo.iml" filepath="$PROJECT_DIR$/MediaCodecDemo.iml" />
-      <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
-      <module fileurl="file://$PROJECT_DIR$/mediacodec4mp4/mediacodec4mp4.iml" filepath="$PROJECT_DIR$/mediacodec4mp4/mediacodec4mp4.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/AndroidRecordMp4.iml" filepath="$PROJECT_DIR$/.idea/modules/AndroidRecordMp4.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/AndroidRecordMp4.app.iml" filepath="$PROJECT_DIR$/.idea/modules/app/AndroidRecordMp4.app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mediacodec4mp4/AndroidRecordMp4.mediacodec4mp4.iml" filepath="$PROJECT_DIR$/.idea/modules/mediacodec4mp4/AndroidRecordMp4.mediacodec4mp4.iml" />
     </modules>
   </component>
 </project>
